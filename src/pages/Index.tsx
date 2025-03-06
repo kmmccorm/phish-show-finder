@@ -31,18 +31,22 @@ const Index = () => {
     isError
   } = useQuery({
     queryKey: ["showData", formattedDate],
-    queryFn: () => fetchShowByDate(formattedDate || ""),
-    enabled: !!formattedDate,
-    retry: 1,
-    onSuccess: (data) => {
-      if (!data.success) {
-        throw new Error(data.error || "Failed to fetch show data");
+    queryFn: async () => {
+      const result = await fetchShowByDate(formattedDate || "");
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch show data");
       }
-      if (!data.data || data.data.length === 0) {
+      
+      if (!result.data || result.data.length === 0) {
         toast.error("No shows found for this date");
         throw new Error("No shows found for this date");
       }
+      
+      return result;
     },
+    enabled: !!formattedDate,
+    retry: 1
   });
 
   // Handler for date change

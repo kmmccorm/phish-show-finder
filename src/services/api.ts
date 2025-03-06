@@ -99,7 +99,9 @@ export async function fetchShowByDate(date: string): Promise<ShowData> {
     console.error('Error fetching show data:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: error && typeof error === 'object' && 'message' in error 
+        ? String(error.message) 
+        : 'An unknown error occurred'
     };
   }
 }
