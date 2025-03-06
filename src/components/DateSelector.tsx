@@ -1,10 +1,11 @@
 
 import * as React from "react";
-import { format } from "date-fns";
+import { format, parse, isValid } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -35,6 +36,45 @@ const DateSelector: React.FC<DateSelectorProps> = ({
   // Use provided dates or defaults
   const actualMinDate = minDate || defaultMinDate;
   const actualMaxDate = maxDate || defaultMaxDate;
+
+  // State for input value
+  const [inputValue, setInputValue] = React.useState<string>(
+    date ? format(date, "MM/dd/yyyy") : ""
+  );
+
+  // Update input when date changes from calendar
+  React.useEffect(() => {
+    if (date) {
+      setInputValue(format(date, "MM/dd/yyyy"));
+    } else {
+      setInputValue("");
+    }
+  }, [date]);
+
+  // Handle direct input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputValue(value);
+    
+    // Try to parse the date
+    if (value) {
+      try {
+        const parsedDate = parse(value, "MM/dd/yyyy", new Date());
+        
+        // Only update if it's a valid date and within range
+        if (isValid(parsedDate) && 
+            parsedDate >= actualMinDate && 
+            parsedDate <= actualMaxDate) {
+          onDateChange(parsedDate);
+        }
+      } catch (error) {
+        // Invalid format, don't update the date
+      }
+    } else {
+      // Clear date if input is empty
+      onDateChange(undefined);
+    }
+  };
   
   return (
     <Popover>
@@ -44,16 +84,23 @@ const DateSelector: React.FC<DateSelectorProps> = ({
           className={cn(
             "w-full md:w-[280px] justify-start text-left font-normal transition-all",
             !date && "text-muted-foreground",
-            "border-2 hover:border-primary/50 focus:border-primary"
+            "border-2 hover:border-primary/50 focus:border-primary p-0 overflow-hidden"
           )}
           disabled={disabled}
         >
-          <CalendarIcon className="mr-3 h-4 w-4 opacity-70" />
-          {date ? (
-            <span className="flex-1">{format(date, "MMMM d, yyyy")}</span>
-          ) : (
-            <span className="flex-1">Select show date</span>
-          )}
+          <div className="flex items-center w-full">
+            <CalendarIcon className="ml-3 h-4 w-4 opacity-70 shrink-0" />
+            <Input
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              placeholder="MM/DD/YYYY"
+              className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
+              disabled={disabled}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            />
+          </div>
         </Button>
       </PopoverTrigger>
       <PopoverContent 
