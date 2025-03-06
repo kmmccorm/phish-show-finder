@@ -51,15 +51,36 @@ const DateSelector: React.FC<DateSelectorProps> = ({
     }
   }, [date]);
 
-  // Handle direct input changes
+  // Handle direct input changes with mask
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setInputValue(value);
     
-    // Try to parse the date
-    if (value) {
+    // Only allow numbers and slashes
+    let formatted = value.replace(/[^\d/]/g, "");
+    
+    // Apply the mask for MM/DD/YYYY format
+    if (formatted.length > 0) {
+      // Remove any existing slashes
+      formatted = formatted.replace(/\//g, "");
+      
+      // Add slashes in the correct positions
+      if (formatted.length > 2) {
+        formatted = formatted.slice(0, 2) + "/" + formatted.slice(2);
+      }
+      if (formatted.length > 5) {
+        formatted = formatted.slice(0, 5) + "/" + formatted.slice(5, 9);
+      }
+      
+      // Limit to MM/DD/YYYY format (10 characters)
+      formatted = formatted.slice(0, 10);
+    }
+    
+    setInputValue(formatted);
+    
+    // Try to parse the date if we have enough characters
+    if (formatted.length === 10) {
       try {
-        const parsedDate = parse(value, "MM/dd/yyyy", new Date());
+        const parsedDate = parse(formatted, "MM/dd/yyyy", new Date());
         
         // Only update if it's a valid date and within range
         if (isValid(parsedDate) && 
@@ -70,9 +91,35 @@ const DateSelector: React.FC<DateSelectorProps> = ({
       } catch (error) {
         // Invalid format, don't update the date
       }
-    } else {
+    } else if (formatted.length === 0) {
       // Clear date if input is empty
       onDateChange(undefined);
+    }
+  };
+
+  // Handle key presses for better UX
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent propagation to avoid closing popover
+    e.stopPropagation();
+    
+    // Handle backspace to delete the whole date
+    if (e.key === "Escape") {
+      setInputValue("");
+      onDateChange(undefined);
+    }
+    
+    // Handle enter to submit the date
+    if (e.key === "Enter" && inputValue.length === 10) {
+      try {
+        const parsedDate = parse(inputValue, "MM/dd/yyyy", new Date());
+        if (isValid(parsedDate) && 
+            parsedDate >= actualMinDate && 
+            parsedDate <= actualMaxDate) {
+          onDateChange(parsedDate);
+        }
+      } catch (error) {
+        // Invalid format, don't update the date
+      }
     }
   };
   
@@ -94,11 +141,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({
               type="text"
               value={inputValue}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               placeholder="MM/DD/YYYY"
               className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
               disabled={disabled}
               onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
             />
           </div>
         </Button>
