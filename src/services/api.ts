@@ -1,4 +1,3 @@
-
 /**
  * API service for interacting with the Phish.net API
  */
@@ -7,6 +6,7 @@
 export interface ShowData {
   success: boolean;
   error?: string;
+  error_message?: string;
   data?: Show[];
 }
 
@@ -66,10 +66,10 @@ export interface Song {
   [key: string]: any; // For additional fields
 }
 
-// Default API key for Phish.net v5 API
+// Updated API key for Phish.net v5 API
 // For a public app like this, it's okay to hardcode the API key
 // For more sensitive apps, consider server-side proxy or user-provided keys
-const API_KEY = "7F4B7F3F2AF38BB4CC1D";
+const API_KEY = "C6838185197BE572612A";
 
 /**
  * Fetch show details by date from Phish.net API
@@ -98,6 +98,17 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
     }
     
     const data = await response.json();
+    
+    // Check if the API returned an error
+    if (data.error && data.error !== 0) {
+      return {
+        success: false,
+        error: data.error_message || `API Error: ${data.error}`,
+        error_message: data.error_message,
+        data: []
+      };
+    }
+    
     return data;
   } catch (error) {
     console.error('Error fetching show data:', error);

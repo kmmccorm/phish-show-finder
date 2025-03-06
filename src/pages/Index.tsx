@@ -35,7 +35,9 @@ const Index = () => {
       const result = await fetchShowByDate(formattedDate || "");
       
       if (!result.success) {
-        throw new Error(result.error || "Failed to fetch show data");
+        const errorMessage = result.error_message || result.error || "Failed to fetch show data";
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
       
       if (!result.data || result.data.length === 0) {
