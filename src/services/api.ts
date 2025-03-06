@@ -1,3 +1,4 @@
+
 /**
  * API service for interacting with the Phish.net API
  */
@@ -69,7 +70,7 @@ export interface Song {
 // Updated API key for Phish.net v5 API
 // For a public app like this, it's okay to hardcode the API key
 // For more sensitive apps, consider server-side proxy or user-provided keys
-const API_KEY = "C6838185197BE572612A";
+const API_KEY = "73BA651EF8247D1A5F27";
 
 /**
  * Fetch show details by date from Phish.net API
