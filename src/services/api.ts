@@ -76,12 +76,16 @@ const API_KEY = "7F4B7F3F2AF38BB4CC1D";
  * @param date Date in YYYY-MM-DD format
  * @returns Promise with show data
  */
-export async function fetchShowByDate(date: string): Promise<ShowData> {
+export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
   try {
     // Format date to YYYY-MM-DD if it's a Date object
-    const formattedDate = typeof date === 'object' && date instanceof Date
-      ? date.toISOString().split('T')[0] 
-      : date;
+    let formattedDate: string;
+    
+    if (date && typeof date === 'object' && 'toISOString' in date) {
+      formattedDate = date.toISOString().split('T')[0];
+    } else {
+      formattedDate = String(date);
+    }
     
     const url = new URL('https://api.phish.net/v5/shows/showdate.json');
     url.searchParams.append('apikey', API_KEY);
