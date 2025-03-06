@@ -79,7 +79,7 @@ const API_KEY = "7F4B7F3F2AF38BB4CC1D";
 export async function fetchShowByDate(date: string): Promise<ShowData> {
   try {
     // Format date to YYYY-MM-DD if it's a Date object
-    const formattedDate = date instanceof Date 
+    const formattedDate = typeof date === 'object' && date instanceof Date
       ? date.toISOString().split('T')[0] 
       : date;
     
