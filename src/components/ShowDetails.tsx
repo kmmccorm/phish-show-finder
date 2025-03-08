@@ -14,15 +14,12 @@ interface ShowDetailsProps {
 
 const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
   // Check if setlist data exists and is properly structured
-  const hasSongs = show.tierset && 
-                   show.tierset.tiers && 
-                   Array.isArray(show.tierset.tiers) && 
-                   show.tierset.tiers.length > 0;
+  const hasSongs = show.sets && Array.isArray(show.sets) && show.sets.length > 0;
   
   console.log("Show data in component:", show);
   console.log("Has songs:", hasSongs);
   if (hasSongs) {
-    console.log("Tierset data:", show.tierset);
+    console.log("Sets data:", show.sets);
   }
   
   return (
@@ -58,7 +55,7 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
               </div>
             )}
             <a
-              href={show.url}
+              href={show.permalink || ''}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm inline-flex items-center gap-1 text-primary hover:underline transition-colors"
@@ -74,20 +71,27 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
       <CardContent className="pt-6">
         {hasSongs ? (
           <div className="space-y-6">
-            {show.tierset.tiers.map((tier, tierIndex) => (
-              <div key={tierIndex}>
+            {show.sets?.map((set, setIndex) => (
+              <div key={setIndex}>
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
                   <Music className="h-5 w-5 text-primary" />
-                  {tier.name}
+                  {set.name}
                 </h3>
                 <ul className="space-y-1 pl-7">
-                  {tier.songs.map((song, songIndex) => (
+                  {set.songs.map((song, songIndex) => (
                     <li key={songIndex} className="list-disc text-muted-foreground flex items-center gap-1">
-                      <span>{song.name}</span>
-                      {song.trans_mark && (
+                      <span className={song.isjam ? "font-medium" : ""}>
+                        {song.name}
+                      </span>
+                      {song.transition && song.transition.trim() && (
                         <span className="inline-flex items-center text-primary">
                           <ArrowRight className="h-3 w-3 mx-1" />
-                          <span className="italic">{song.trans_mark}</span>
+                          <span className="italic">{song.transition.trim()}</span>
+                        </span>
+                      )}
+                      {song.footnote && (
+                        <span className="text-xs text-muted-foreground italic ml-2">
+                          ({song.footnote})
                         </span>
                       )}
                     </li>
@@ -105,9 +109,10 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
         {show.setlistnotes && (
           <div className="mt-6 pt-6 border-t">
             <h3 className="text-lg font-semibold mb-3">Notes</h3>
-            <div className="text-muted-foreground whitespace-pre-line">
-              {show.setlistnotes}
-            </div>
+            <div 
+              className="text-muted-foreground"
+              dangerouslySetInnerHTML={{ __html: show.setlistnotes }}
+            />
           </div>
         )}
 

@@ -13,38 +13,41 @@ export interface ShowData {
 export interface Show {
   showid: string;
   showdate: string;
-  short_date: string;
-  long_date: string;
-  relative_date: string;
-  url: string;
-  gapchart: string;
+  short_date?: string;
+  long_date?: string;
+  relative_date?: string;
+  url?: string;
+  permalink?: string; // Added from actual API response
+  gapchart?: string;
   artist_name: string;
   venueid: string;
   venue: string;
-  location: string;
+  location?: string;
   setlistnotes: string;
-  setlistdata: string;
-  rating: string;
-  ratingcount: string;
+  setlistdata?: string;
+  rating?: string;
+  ratingcount?: string;
   country: string;
   city: string;
   state: string;
-  zip: string;
-  tours: Tour[];
-  tags: Tag[];
-  tierset: Tierset;
+  zip?: string;
+  tours?: Tour[];
+  tags?: Tag[];
+  // For setlist display
+  songs?: SongItem[];
+  sets?: Set[];
 }
 
 export interface Tour {
   id: string;
   name: string;
-  startdate: string;
-  enddate: string;
+  startdate?: string;
+  enddate?: string;
 }
 
 export interface Tag {
   name: string;
-  count: string;
+  count?: string;
 }
 
 export interface Tierset {
@@ -60,11 +63,26 @@ export interface Song {
   id: string;
   name: string;
   slug: string;
-  trackposition: string;
-  isjam: string;
-  isalbum: string;
+  trackposition?: string;
+  isjam?: string;
+  isalbum?: string;
   trans_mark?: string;
   [key: string]: any; // For additional fields
+}
+
+// New interfaces for processed setlist data
+export interface SongItem {
+  name: string;
+  set: string;
+  position: number;
+  transition?: string;
+  footnote?: string;
+  isjam?: boolean;
+}
+
+export interface Set {
+  name: string;
+  songs: SongItem[];
 }
 
 // Updated API key for Phish.net v5 API
@@ -125,23 +143,78 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
       };
     }
     
-    // Process the data to ensure proper structure
-    const processedData = data.data.map((show: any) => {
-      // Ensure tierset is properly structured
-      if (show.setlistdata && typeof show.setlistdata === 'string') {
-        try {
-          // Some responses might have the setlist in JSON format that needs parsing
-          const setlistDataObj = JSON.parse(show.setlistdata);
-          if (setlistDataObj && typeof setlistDataObj === 'object') {
-            show.setlistdata = setlistDataObj;
-          }
-        } catch (e) {
-          // If it's not valid JSON, that's fine - we'll keep the string
-          console.log("Setlist is not JSON format, keeping as string");
-        }
+    // Process and organize the data to make it easier to display
+    const songsMap = new Map<string, SongItem[]>();
+    const processedData = data.data.map((item: any) => {
+      // Extract the show ID
+      const showId = item.showid;
+      
+      // Initialize the songs array for this show if it doesn't exist yet
+      if (!songsMap.has(showId)) {
+        songsMap.set(showId, []);
       }
       
-      return show;
+      // Add this song to the show's songs array
+      songsMap.get(showId)?.push({
+        name: item.song,
+        set: item.set,
+        position: parseInt(item.position, 10),
+        transition: item.trans_mark,
+        footnote: item.footnote,
+        isjam: item.isjam === '1'
+      });
+      
+      // Return the full show data for the first song only, to avoid duplicates
+      if (item.position === '1' && item.set === '1') {
+        return {
+          showid: item.showid,
+          showdate: item.showdate,
+          permalink: item.permalink,
+          venue: item.venue,
+          city: item.city,
+          state: item.state,
+          country: item.country,
+          setlistnotes: item.setlistnotes,
+          artist_name: item.artist_name,
+          rating: item.rating,
+          ratingcount: item.reviews,
+          tours: item.tourname ? [{ id: item.tourid, name: item.tourname }] : [],
+          // Other fields will be added later
+        };
+      }
+      return null;
+    }).filter(Boolean);
+    
+    // Add songs to each show and organize them into sets
+    processedData.forEach((show: any) => {
+      const songItems = songsMap.get(show.showid) || [];
+      show.songs = songItems;
+      
+      // Organize songs into sets
+      const setMap = new Map<string, SongItem[]>();
+      
+      songItems.forEach(song => {
+        if (!setMap.has(song.set)) {
+          setMap.set(song.set, []);
+        }
+        setMap.get(song.set)?.push(song);
+      });
+      
+      // Convert the map to an array of Set objects
+      show.sets = Array.from(setMap.entries()).map(([name, songs]) => {
+        // Sort songs by position within the set
+        const sortedSongs = [...songs].sort((a, b) => a.position - b.position);
+        return {
+          name: getSetName(name),
+          songs: sortedSongs
+        };
+      });
+      
+      // Sort sets in a logical order
+      show.sets.sort((a, b) => {
+        // Custom sorting logic for set names
+        return getSetOrder(a.name) - getSetOrder(b.name);
+      });
     });
     
     return {
@@ -156,6 +229,38 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
         ? String(error.message) 
         : 'An unknown error occurred'
     };
+  }
+}
+
+/**
+ * Convert set code to display name
+ */
+function getSetName(setCode: string): string {
+  switch(setCode) {
+    case '1': return 'Set 1';
+    case '2': return 'Set 2';
+    case '3': return 'Set 3';
+    case '4': return 'Set 4';
+    case 'e': return 'Encore';
+    case 'e2': return 'Encore 2';
+    case 'e3': return 'Encore 3';
+    default: return `Set ${setCode}`;
+  }
+}
+
+/**
+ * Get sort order for sets
+ */
+function getSetOrder(setName: string): number {
+  switch(setName) {
+    case 'Set 1': return 1;
+    case 'Set 2': return 2;
+    case 'Set 3': return 3;
+    case 'Set 4': return 4;
+    case 'Encore': return 90;
+    case 'Encore 2': return 91;
+    case 'Encore 3': return 92;
+    default: return 99;
   }
 }
 
