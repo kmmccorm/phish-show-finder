@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -32,17 +31,16 @@ const Index = () => {
   } = useQuery({
     queryKey: ["showData", formattedDate],
     queryFn: async () => {
-      const result = await fetchShowByDate(formattedDate || "");
+      if (!formattedDate) {
+        throw new Error("Please select a date");
+      }
+      
+      const result = await fetchShowByDate(formattedDate);
       
       if (!result.success) {
         const errorMessage = result.error_message || result.error || "Failed to fetch show data";
         toast.error(errorMessage);
         throw new Error(errorMessage);
-      }
-      
-      if (!result.data || result.data.length === 0) {
-        toast.error("No shows found for this date");
-        throw new Error("No shows found for this date");
       }
       
       return result;

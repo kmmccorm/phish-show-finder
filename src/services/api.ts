@@ -1,3 +1,4 @@
+
 /**
  * API service for interacting with the Phish.net API
  */
@@ -91,6 +92,7 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
     url.searchParams.append('apikey', API_KEY);
     url.searchParams.append('showdate', formattedDate);
     
+    console.log(`Fetching show data for date: ${formattedDate}`);
     const response = await fetch(url.toString());
     
     if (!response.ok) {
@@ -98,6 +100,7 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
     }
     
     const data = await response.json();
+    console.log('API response:', data);
     
     // Check if the API returned an error
     if (data.error && data.error !== 0) {
@@ -109,7 +112,20 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
       };
     }
     
-    return data;
+    // API returns a successful response but with empty data
+    if (!data.data || data.data.length === 0) {
+      return {
+        success: false,
+        error: `No shows found for ${formattedDate}`,
+        error_message: `No shows found for ${formattedDate}`,
+        data: []
+      };
+    }
+    
+    return {
+      success: true,
+      data: data.data
+    };
   } catch (error) {
     console.error('Error fetching show data:', error);
     return {
