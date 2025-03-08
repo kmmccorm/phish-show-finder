@@ -13,7 +13,7 @@ interface ShowDetailsProps {
 }
 
 const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
-  // Check if setlist data exists and is properly structured
+  // Check if setlist data exists
   const hasSongs = show.sets && Array.isArray(show.sets) && show.sets.length > 0;
   
   console.log("Show data in component:", show);
@@ -78,24 +78,28 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
                   {set.name}
                 </h3>
                 <ul className="space-y-1 pl-7">
-                  {set.songs.map((song, songIndex) => (
-                    <li key={songIndex} className="list-disc text-muted-foreground flex items-center gap-1">
-                      <span className={song.isjam ? "font-medium" : ""}>
-                        {song.name}
-                      </span>
-                      {song.transition && song.transition.trim() && (
-                        <span className="inline-flex items-center text-primary">
-                          <ArrowRight className="h-3 w-3 mx-1" />
-                          <span className="italic">{song.transition.trim()}</span>
+                  {set.songs && set.songs.length > 0 ? (
+                    set.songs.map((song, songIndex) => (
+                      <li key={songIndex} className="list-disc text-muted-foreground flex items-center gap-1">
+                        <span className={song.isjam ? "font-medium" : ""}>
+                          {song.name}
                         </span>
-                      )}
-                      {song.footnote && (
-                        <span className="text-xs text-muted-foreground italic ml-2">
-                          ({song.footnote})
-                        </span>
-                      )}
-                    </li>
-                  ))}
+                        {song.transition && song.transition.trim() && (
+                          <span className="inline-flex items-center text-primary">
+                            <ArrowRight className="h-3 w-3 mx-1" />
+                            <span className="italic">{song.transition.trim()}</span>
+                          </span>
+                        )}
+                        {song.footnote && (
+                          <span className="text-xs text-muted-foreground italic ml-2">
+                            ({song.footnote})
+                          </span>
+                        )}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-muted-foreground">No songs found in this set</li>
+                  )}
                 </ul>
               </div>
             ))}
