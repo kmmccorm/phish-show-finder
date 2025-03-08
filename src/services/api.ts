@@ -1,4 +1,3 @@
-
 /**
  * API service for interacting with the Phish.net API
  */
@@ -126,9 +125,28 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
       };
     }
     
+    // Process the data to ensure proper structure
+    const processedData = data.data.map((show: any) => {
+      // Ensure tierset is properly structured
+      if (show.setlistdata && typeof show.setlistdata === 'string') {
+        try {
+          // Some responses might have the setlist in JSON format that needs parsing
+          const setlistDataObj = JSON.parse(show.setlistdata);
+          if (setlistDataObj && typeof setlistDataObj === 'object') {
+            show.setlistdata = setlistDataObj;
+          }
+        } catch (e) {
+          // If it's not valid JSON, that's fine - we'll keep the string
+          console.log("Setlist is not JSON format, keeping as string");
+        }
+      }
+      
+      return show;
+    });
+    
     return {
       success: true,
-      data: data.data
+      data: processedData
     };
   } catch (error) {
     console.error('Error fetching show data:', error);
@@ -142,31 +160,16 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
 }
 
 /**
- * Parse setlist data from a show
- * @param setlistdata Raw setlist data string from API
- * @returns Formatted setlist with sets and songs
- */
-export function parseSetlist(setlistdata: string): { set: string; songs: string[] }[] {
-  if (!setlistdata) return [];
-  
-  // Simple parsing logic - can be enhanced based on actual data format
-  const sets = setlistdata.split(/Set \d+:/g).filter(Boolean);
-  
-  return sets.map((set, index) => {
-    const setName = `Set ${index + 1}`;
-    const songs = set.split(',').map(song => song.trim()).filter(Boolean);
-    return { set: setName, songs };
-  });
-}
-
-/**
  * Format show date to a human-readable format
  * @param dateString Date string in API format
  * @returns Formatted date string
  */
 export function formatShowDate(dateString: string): string {
   try {
-    const date = new Date(dateString);
+    // Parse the date - make sure to handle YYYY-MM-DD format correctly
+    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+    const date = new Date(year, month - 1, day); // month is 0-indexed in JS Date
+    
     return new Intl.DateTimeFormat('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -174,7 +177,7 @@ export function formatShowDate(dateString: string): string {
       day: 'numeric'
     }).format(date);
   } catch (e) {
+    console.error("Error formatting date:", e);
     return dateString;
   }
 }
-

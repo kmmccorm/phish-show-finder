@@ -13,11 +13,17 @@ interface ShowDetailsProps {
 }
 
 const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
-  // Check if tierset is available and has valid tiers
+  // Check if setlist data exists and is properly structured
   const hasSongs = show.tierset && 
                    show.tierset.tiers && 
                    Array.isArray(show.tierset.tiers) && 
                    show.tierset.tiers.length > 0;
+  
+  console.log("Show data in component:", show);
+  console.log("Has songs:", hasSongs);
+  if (hasSongs) {
+    console.log("Tierset data:", show.tierset);
+  }
   
   return (
     <Card className={cn("w-full overflow-hidden glass-panel animate-slide-up", className)}>
