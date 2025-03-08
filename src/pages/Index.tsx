@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -15,6 +16,7 @@ const Index = () => {
   // Update formatted date when date changes
   useEffect(() => {
     if (date) {
+      // Use format from date-fns which respects local timezone
       setFormattedDate(format(date, "yyyy-MM-dd"));
     } else {
       setFormattedDate(undefined);
