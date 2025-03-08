@@ -85,8 +85,8 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
                           {song.name}
                         </span>
                         {song.transition && song.transition.trim() && (
-                          <span className="text-primary ml-1">
-                            {song.transition.trim()}
+                          <span className="text-primary">
+                            {song.transition.trim() === ',' ? ',' : ` ${song.transition.trim()}`}
                           </span>
                         )}
                         {song.footnote && (
