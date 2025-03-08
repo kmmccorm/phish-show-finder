@@ -6,6 +6,7 @@
 
 export { fetchShowByDate } from './shows-api';
 export { formatShowDate } from './date-utils';
+export { transformShowData, extractShowTags } from './show-processor';
 export type { 
   ShowData, 
   Show, 

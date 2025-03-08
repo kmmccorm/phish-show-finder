@@ -4,8 +4,8 @@
  */
 
 import { fetchFromApi } from "./api-client";
-import { ShowData, Show, SongItem } from "../types/show";
-import { organizeSongsIntoSets } from "./setlist-utils";
+import { ShowData } from "../types/show";
+import { transformShowData } from "./show-processor";
 import { formatDateToString } from "./date-utils";
 
 /**
@@ -50,8 +50,8 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
       };
     }
     
-    // Process and organize the data
-    const processedData = processShowData(data.data);
+    // Process and organize the data using our utility function
+    const processedData = transformShowData(data.data);
     
     console.log("Processed data:", processedData);
     
@@ -68,68 +68,4 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
         : 'An unknown error occurred'
     };
   }
-}
-
-/**
- * Process raw API data into a structured format
- * @param rawData Raw data from the API
- * @returns Processed show data
- */
-function processShowData(rawData: any[]): Show[] {
-  // Group songs by showid first
-  const showsMap = new Map<string, Show>();
-  const songsMap = new Map<string, SongItem[]>();
-  
-  // First pass - collect all songs and basic show info
-  rawData.forEach((item: any) => {
-    const showId = item.showid;
-    
-    // Initialize the songs array for this show if it doesn't exist yet
-    if (!songsMap.has(showId)) {
-      songsMap.set(showId, []);
-      
-      // Initialize the show object
-      showsMap.set(showId, {
-        showid: item.showid,
-        showdate: item.showdate,
-        permalink: item.permalink,
-        venue: item.venue,
-        city: item.city,
-        state: item.state,
-        country: item.country,
-        setlistnotes: item.setlistnotes,
-        artist_name: item.artist_name,
-        venueid: item.venueid,
-        rating: item.rating,
-        ratingcount: item.reviews,
-        tours: item.tourname ? [{ id: item.tourid, name: item.tourname }] : [],
-      });
-    }
-    
-    // Add this song to the show's songs array if it has a valid position
-    if (item.position && item.set) {
-      songsMap.get(showId)?.push({
-        name: item.song,
-        set: item.set,
-        position: parseInt(item.position, 10),
-        transition: item.trans_mark,
-        footnote: item.footnote,
-        isjam: item.isjam === '1'
-      });
-    }
-  });
-  
-  // Convert the Maps to arrays for the response
-  const processedData = Array.from(showsMap.values());
-  
-  // Add songs to each show and organize them into sets
-  processedData.forEach((show) => {
-    const songItems = songsMap.get(show.showid) || [];
-    show.songs = songItems;
-    
-    // Organize songs into sets
-    show.sets = organizeSongsIntoSets(songItems);
-  });
-  
-  return processedData;
 }
