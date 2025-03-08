@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Show, formatShowDate } from "@/services/api";
-import { ExternalLink, MapPin, Calendar, Music, Star, ArrowRight } from "lucide-react";
+import { ExternalLink, MapPin, Calendar, Music, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ShowDetailsProps {
@@ -85,9 +85,8 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
                           {song.name}
                         </span>
                         {song.transition && song.transition.trim() && (
-                          <span className="inline-flex items-center text-primary">
-                            <ArrowRight className="h-3 w-3 mx-1" />
-                            <span className="italic">{song.transition.trim()}</span>
+                          <span className="text-primary ml-1">
+                            {song.transition.trim()}
                           </span>
                         )}
                         {song.footnote && (
