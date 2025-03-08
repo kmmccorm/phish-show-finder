@@ -3,8 +3,8 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Show, parseSetlist, formatShowDate } from "@/services/api";
-import { ExternalLink, MapPin, Calendar, Music, Star } from "lucide-react";
+import { Show, formatShowDate } from "@/services/api";
+import { ExternalLink, MapPin, Calendar, Music, Star, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ShowDetailsProps {
@@ -13,7 +13,11 @@ interface ShowDetailsProps {
 }
 
 const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
-  const setlist = parseSetlist(show.setlistdata);
+  // Check if tierset is available and has valid tiers
+  const hasSongs = show.tierset && 
+                   show.tierset.tiers && 
+                   Array.isArray(show.tierset.tiers) && 
+                   show.tierset.tiers.length > 0;
   
   return (
     <Card className={cn("w-full overflow-hidden glass-panel animate-slide-up", className)}>
@@ -62,18 +66,24 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
       <Separator />
       
       <CardContent className="pt-6">
-        {setlist.length > 0 ? (
+        {hasSongs ? (
           <div className="space-y-6">
-            {setlist.map((set, index) => (
-              <div key={index}>
+            {show.tierset.tiers.map((tier, tierIndex) => (
+              <div key={tierIndex}>
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
                   <Music className="h-5 w-5 text-primary" />
-                  {set.set}
+                  {tier.name}
                 </h3>
                 <ul className="space-y-1 pl-7">
-                  {set.songs.map((song, songIndex) => (
-                    <li key={songIndex} className="list-disc text-muted-foreground">
-                      {song}
+                  {tier.songs.map((song, songIndex) => (
+                    <li key={songIndex} className="list-disc text-muted-foreground flex items-center gap-1">
+                      <span>{song.name}</span>
+                      {song.trans_mark && (
+                        <span className="inline-flex items-center text-primary">
+                          <ArrowRight className="h-3 w-3 mx-1" />
+                          <span className="italic">{song.trans_mark}</span>
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

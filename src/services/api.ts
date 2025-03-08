@@ -64,6 +64,7 @@ export interface Song {
   trackposition: string;
   isjam: string;
   isalbum: string;
+  trans_mark?: string;
   [key: string]: any; // For additional fields
 }
 
@@ -176,3 +177,4 @@ export function formatShowDate(dateString: string): string {
     return dateString;
   }
 }
+
