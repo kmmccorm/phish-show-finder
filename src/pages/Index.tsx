@@ -37,7 +37,9 @@ const Index = () => {
         throw new Error("Please select a date");
       }
       
+      console.log("Fetching data for date:", formattedDate);
       const result = await fetchShowByDate(formattedDate);
+      console.log("API result:", result);
       
       if (!result.success) {
         const errorMessage = result.error_message || result.error || "Failed to fetch show data";
@@ -63,6 +65,8 @@ const Index = () => {
 
   // Extract show from data if available
   const show = data?.data && data.data.length > 0 ? data.data[0] : null;
+  
+  console.log("Final show object:", show);
 
   return (
     <div className="min-h-screen flex flex-col">

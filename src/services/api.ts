@@ -1,3 +1,4 @@
+
 /**
  * API service for interacting with the Phish.net API
  */
@@ -124,7 +125,7 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
     console.log('API response:', data);
     
     // Check if the API returned an error
-    if (data.error && data.error !== 0) {
+    if (data.error && data.error !== 0 && data.error !== false) {
       return {
         success: false,
         error: data.error_message || `API Error: ${data.error}`,
@@ -144,29 +145,20 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
     }
     
     // Process and organize the data to make it easier to display
+    // Group songs by showid first
+    const showsMap = new Map();
     const songsMap = new Map<string, SongItem[]>();
-    const processedData = data.data.map((item: any) => {
-      // Extract the show ID
+    
+    // First pass - collect all songs and basic show info
+    data.data.forEach((item: any) => {
       const showId = item.showid;
       
       // Initialize the songs array for this show if it doesn't exist yet
       if (!songsMap.has(showId)) {
         songsMap.set(showId, []);
-      }
-      
-      // Add this song to the show's songs array
-      songsMap.get(showId)?.push({
-        name: item.song,
-        set: item.set,
-        position: parseInt(item.position, 10),
-        transition: item.trans_mark,
-        footnote: item.footnote,
-        isjam: item.isjam === '1'
-      });
-      
-      // Return the full show data for the first song only, to avoid duplicates
-      if (item.position === '1' && item.set === '1') {
-        return {
+        
+        // Initialize the show object
+        showsMap.set(showId, {
           showid: item.showid,
           showdate: item.showdate,
           permalink: item.permalink,
@@ -179,11 +171,25 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
           rating: item.rating,
           ratingcount: item.reviews,
           tours: item.tourname ? [{ id: item.tourid, name: item.tourname }] : [],
-          // Other fields will be added later
-        };
+          // Will add songs and sets later
+        });
       }
-      return null;
-    }).filter(Boolean);
+      
+      // Add this song to the show's songs array if it has a valid position
+      if (item.position && item.set) {
+        songsMap.get(showId)?.push({
+          name: item.song,
+          set: item.set,
+          position: parseInt(item.position, 10),
+          transition: item.trans_mark,
+          footnote: item.footnote,
+          isjam: item.isjam === '1'
+        });
+      }
+    });
+    
+    // Convert the Maps to arrays for the response
+    const processedData = Array.from(showsMap.values());
     
     // Add songs to each show and organize them into sets
     processedData.forEach((show: any) => {
@@ -216,6 +222,8 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
         return getSetOrder(a.name) - getSetOrder(b.name);
       });
     });
+    
+    console.log("Processed data:", processedData);
     
     return {
       success: true,
