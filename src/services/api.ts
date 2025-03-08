@@ -1,4 +1,3 @@
-
 /**
  * API service for interacting with the Phish.net API
  */
@@ -88,12 +87,11 @@ export async function fetchShowByDate(date: string | Date): Promise<ShowData> {
       formattedDate = String(date);
     }
     
-    const url = new URL('https://api.phish.net/v5/shows/showdate.json');
-    url.searchParams.append('apikey', API_KEY);
-    url.searchParams.append('showdate', formattedDate);
+    // Updated URL to use the setlists endpoint
+    const url = `https://api.phish.net/v5/setlists/showdate/${formattedDate}.json?apikey=${API_KEY}`;
     
     console.log(`Fetching show data for date: ${formattedDate}`);
-    const response = await fetch(url.toString());
+    const response = await fetch(url);
     
     if (!response.ok) {
       throw new Error(`API request failed with status ${response.status}`);
