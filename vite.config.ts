@@ -5,6 +5,11 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Base URL for the application
+  // For GitHub Pages: '/repository-name/'
+  // For root domain: '/'
+  // Use '/' for local preview, '/phish-show-finder/' for production
+  base: mode === 'production' ? '/phish-show-finder/' : '/',
   server: {
     host: "::",
     port: 8080,
