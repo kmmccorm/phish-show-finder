@@ -20,7 +20,11 @@ const mockRawData = [
     position: "3",
     trans_mark: ">",
     tourname: "Summer 2023",
-    tourid: "101"
+    tourid: "101",
+    tags: [
+      { name: "Jam" },
+      { name: "Noteworthy" }
+    ]
   },
   {
     showid: "1234567",
@@ -33,7 +37,11 @@ const mockRawData = [
     song: "Stash",
     set: "1",
     position: "4",
-    isjam: "1"
+    isjam: "1",
+    tags: [
+      { name: "Jam" }, // Duplicate - should be deduplicated
+      { name: "Debut" }
+    ]
   }
 ];
 
@@ -60,6 +68,13 @@ describe('transformShowData', () => {
     // Check tour information
     expect(result[0].tours?.length).toBe(1);
     expect(result[0].tours?.[0].name).toBe("Summer 2023");
+
+    // Check tags are extracted and deduplicated
+    expect(result[0].tags).toBeDefined();
+    expect(result[0].tags?.length).toBe(3); // Jam, Noteworthy, Debut (deduplicated)
+    expect(result[0].tags?.some(t => t.name === "Jam")).toBeTruthy();
+    expect(result[0].tags?.some(t => t.name === "Noteworthy")).toBeTruthy();
+    expect(result[0].tags?.some(t => t.name === "Debut")).toBeTruthy();
   });
   
   test('should handle empty or invalid data', () => {
@@ -78,13 +93,145 @@ describe('transformShowData', () => {
         // Missing other fields
       }
     ];
-    
+
     const result = transformShowData(incompleteData);
-    
+
     expect(result.length).toBe(1);
     expect(result[0].showid).toBe("12345");
     expect(result[0].venue).toBe("Unknown Venue");
     expect(result[0].artist_name).toBe("Phish");
+    expect(result[0].tags).toEqual([]); // Should have empty tags array
+  });
+
+  test('should handle shows without tags', () => {
+    const dataWithoutTags = [
+      {
+        showid: "99999",
+        showdate: "2023-07-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Test Song",
+        set: "1",
+        position: "1"
+      }
+    ];
+
+    const result = transformShowData(dataWithoutTags);
+
+    expect(result.length).toBe(1);
+    expect(result[0].tags).toEqual([]); // Should have empty array, not undefined
+  });
+
+  test('should handle invalid position numbers', () => {
+    const dataWithInvalidPositions = [
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Valid Song",
+        set: "1",
+        position: "1" // Valid
+      },
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Invalid Song 1",
+        set: "1",
+        position: "NaN" // Invalid - not a number
+      },
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Invalid Song 2",
+        set: "1",
+        position: "-1" // Invalid - negative
+      },
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Invalid Song 3",
+        set: "1",
+        position: "0" // Invalid - zero
+      },
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Valid Song 2",
+        set: "1",
+        position: "2" // Valid
+      }
+    ];
+
+    const result = transformShowData(dataWithInvalidPositions);
+
+    expect(result.length).toBe(1);
+    // Should only include songs with valid positions (1 and 2)
+    expect(result[0].songs?.length).toBe(2);
+    expect(result[0].songs?.[0].name).toBe("Valid Song");
+    expect(result[0].songs?.[1].name).toBe("Valid Song 2");
+    // Invalid position songs should be filtered out
+    expect(result[0].songs?.some(s => s.name === "Invalid Song 1")).toBeFalsy();
+    expect(result[0].songs?.some(s => s.name === "Invalid Song 2")).toBeFalsy();
+    expect(result[0].songs?.some(s => s.name === "Invalid Song 3")).toBeFalsy();
+  });
+
+  test('should correctly parse valid position strings', () => {
+    const dataWithStringPositions = [
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Song Three",
+        set: "1",
+        position: "3" // String number
+      },
+      {
+        showid: "12345",
+        showdate: "2023-08-01",
+        venue: "Test Venue",
+        city: "Test City",
+        state: "TS",
+        country: "USA",
+        song: "Song One",
+        set: "1",
+        position: "1" // String number
+      }
+    ];
+
+    const result = transformShowData(dataWithStringPositions);
+
+    expect(result.length).toBe(1);
+    expect(result[0].songs?.length).toBe(2);
+    // Verify positions are numbers
+    expect(typeof result[0].songs?.[0].position).toBe('number');
+    expect(typeof result[0].songs?.[1].position).toBe('number');
+    // Verify the songs are properly ordered by position in sets
+    expect(result[0].sets?.[0].songs[0].name).toBe("Song One");
+    expect(result[0].sets?.[0].songs[1].name).toBe("Song Three");
   });
 });
 

@@ -1,6 +1,6 @@
 
 import * as React from "react";
-import { format, parse, isValid } from "date-fns";
+import { format, parse, isValid, startOfDay } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,15 +27,21 @@ const DateSelector: React.FC<DateSelectorProps> = ({
   maxDate,
   disabled = false,
 }) => {
-  // Default min date to Phish's first show: December 2, 1983
-  const defaultMinDate = new Date(1983, 11, 2);
-  
-  // Default max date to today
-  const defaultMaxDate = new Date();
-  
-  // Use provided dates or defaults
-  const actualMinDate = minDate || defaultMinDate;
-  const actualMaxDate = maxDate || defaultMaxDate;
+  // Helper function to normalize dates to midnight (start of day)
+  // This prevents timezone and time-of-day comparison issues
+  const normalizeDate = (date: Date): Date => {
+    return startOfDay(date);
+  };
+
+  // Default min date to Phish's first show: December 2, 1983 at midnight
+  const defaultMinDate = normalizeDate(new Date(1983, 11, 2));
+
+  // Default max date to today at midnight
+  const defaultMaxDate = normalizeDate(new Date());
+
+  // Use provided dates or defaults, normalized to midnight
+  const actualMinDate = minDate ? normalizeDate(minDate) : defaultMinDate;
+  const actualMaxDate = maxDate ? normalizeDate(maxDate) : defaultMaxDate;
 
   // State for input value
   const [inputValue, setInputValue] = React.useState<string>(
@@ -81,12 +87,14 @@ const DateSelector: React.FC<DateSelectorProps> = ({
     if (formatted.length === 10) {
       try {
         const parsedDate = parse(formatted, "MM/dd/yyyy", new Date());
-        
+
         // Only update if it's a valid date and within range
-        if (isValid(parsedDate) && 
-            parsedDate >= actualMinDate && 
-            parsedDate <= actualMaxDate) {
-          onDateChange(parsedDate);
+        // Normalize to midnight for consistent comparison
+        if (isValid(parsedDate)) {
+          const normalizedDate = normalizeDate(parsedDate);
+          if (normalizedDate >= actualMinDate && normalizedDate <= actualMaxDate) {
+            onDateChange(normalizedDate);
+          }
         }
       } catch (error) {
         // Invalid format, don't update the date
@@ -112,10 +120,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({
     if (e.key === "Enter" && inputValue.length === 10) {
       try {
         const parsedDate = parse(inputValue, "MM/dd/yyyy", new Date());
-        if (isValid(parsedDate) && 
-            parsedDate >= actualMinDate && 
-            parsedDate <= actualMaxDate) {
-          onDateChange(parsedDate);
+        if (isValid(parsedDate)) {
+          const normalizedDate = normalizeDate(parsedDate);
+          if (normalizedDate >= actualMinDate && normalizedDate <= actualMaxDate) {
+            onDateChange(normalizedDate);
+          }
         }
       } catch (error) {
         // Invalid format, don't update the date
@@ -160,9 +169,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({
           selected={date}
           onSelect={onDateChange}
           disabled={(date) => {
+            // Normalize the date being checked for consistent comparison
+            const normalizedDate = normalizeDate(date);
             return (
-              date < actualMinDate ||
-              date > actualMaxDate
+              normalizedDate < actualMinDate ||
+              normalizedDate > actualMaxDate
             );
           }}
           initialFocus

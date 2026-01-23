@@ -3,10 +3,14 @@
  * API client for interacting with the Phish.net API
  */
 
-// Updated API key for Phish.net v5 API
-// For a public app like this, it's okay to hardcode the API key
-// For more sensitive apps, consider server-side proxy or user-provided keys
-const API_KEY = "ADB07055FF645FD21980";
+// Load API key from environment variables
+// Note: In a client-side app, this key is still visible in the browser
+// For production apps, consider using a backend proxy to keep the key secure
+const API_KEY = import.meta.env.VITE_PHISH_API_KEY;
+
+if (!API_KEY) {
+  throw new Error("VITE_PHISH_API_KEY environment variable is not set. Please check your .env.local file.");
+}
 
 /**
  * Fetch data from the Phish.net API

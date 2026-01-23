@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Show, formatShowDate } from "@/services/api";
 import { ExternalLink, MapPin, Calendar, Music, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface ShowDetailsProps {
   show: Show;
@@ -15,7 +16,12 @@ interface ShowDetailsProps {
 const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
   // Check if setlist data exists
   const hasSongs = show.sets && Array.isArray(show.sets) && show.sets.length > 0;
-  
+
+  // Sanitize HTML content to prevent XSS attacks
+  const sanitizedNotes = React.useMemo(() => {
+    return sanitizeHtml(show.setlistnotes, 'standard');
+  }, [show.setlistnotes]);
+
   console.log("Show data in component:", show);
   console.log("Has songs:", hasSongs);
   if (hasSongs) {
@@ -54,14 +60,16 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
                 <span className="text-xs text-muted-foreground">({show.ratingcount} ratings)</span>
               </div>
             )}
-            <a
-              href={show.permalink || ''}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm inline-flex items-center gap-1 text-primary hover:underline transition-colors"
-            >
-              View on Phish.net <ExternalLink className="h-3 w-3" />
-            </a>
+            {show.permalink && show.permalink.trim() !== '' && (
+              <a
+                href={show.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm inline-flex items-center gap-1 text-primary hover:underline transition-colors"
+              >
+                View on Phish.net <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -112,9 +120,9 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
         {show.setlistnotes && (
           <div className="mt-6 pt-6 border-t">
             <h3 className="text-lg font-semibold mb-3">Notes</h3>
-            <div 
+            <div
               className="text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: show.setlistnotes }}
+              dangerouslySetInnerHTML={{ __html: sanitizedNotes }}
             />
           </div>
         )}
