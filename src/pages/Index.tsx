@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fetchShowByDate, Show } from "@/services/api";
+import { getUserFriendlyMessage, isRetryableError } from "@/services/api-errors";
 import DateSelector from "@/components/DateSelector";
 import ShowDetails from "@/components/ShowDetails";
 import LoadingState from "@/components/LoadingState";
@@ -36,21 +37,28 @@ const Index = () => {
       if (!formattedDate) {
         throw new Error("Please select a date");
       }
-      
+
       console.log("Fetching data for date:", formattedDate);
       const result = await fetchShowByDate(formattedDate);
       console.log("API result:", result);
-      
+
       if (!result.success) {
         const errorMessage = result.error_message || result.error || "Failed to fetch show data";
         toast.error(errorMessage);
         throw new Error(errorMessage);
       }
-      
+
       return result;
     },
     enabled: !!formattedDate,
-    retry: 1
+    retry: (failureCount, error) => {
+      // Only retry if the error is retryable and we haven't exceeded max retries
+      if (!isRetryableError(error)) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000)
   });
 
   // Handler for date change
@@ -99,8 +107,8 @@ const Index = () => {
         
         {isError && (
           <ErrorState
-            message={error instanceof Error ? error.message : "An unknown error occurred"}
-            onRetry={handleRetry}
+            message={getUserFriendlyMessage(error)}
+            onRetry={isRetryableError(error) ? handleRetry : undefined}
           />
         )}
         
