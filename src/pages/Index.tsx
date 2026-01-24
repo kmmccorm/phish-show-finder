@@ -69,7 +69,7 @@ const Index = () => {
   console.log("Final show object:", show);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-100 via-white to-indigo-50">
       {/* Header */}
       <div className="relative py-16 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="container max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
