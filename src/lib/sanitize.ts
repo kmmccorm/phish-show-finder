@@ -86,25 +86,36 @@ export function fixEncodingIssues(text: string): string {
 
   // Common UTF-8 mojibake patterns when decoded as Windows-1252
   const replacements: [RegExp, string][] = [
-    // Smart quotes and apostrophes
+    // Apostrophes - â between letters (e.g., "didn't", "clock's")
+    [/(\w)â(\w)/g, "$1'$2"],
+
+    // Opening smart quotes - â after space/start or before word
+    [/(^|[\s(])â(\w)/g, '$1"$2'],
+
+    // Closing smart quotes - â after word, before space/punctuation/end
+    [/(\w)â([\s.,;:!?)"]|$)/g, '$1"$2'],
+
+    // Any remaining standalone â likely a quote
+    [/â/g, '"'],
+
+    // Orphaned Â in various positions
+    [/Â /g, ' '],           // Â followed by space
+    [/ Â/g, ' '],           // Space followed by Â
+    [/(\w)Â(\w)/g, '$1 $2'], // Â between words - replace with space
+    [/(\.)Â /g, '. '],      // Â after period
+    [/Â(?=[A-Z])/g, ' '],   // Â before capital letter (likely sentence boundary)
+    [/Â/g, ''],             // Remove any remaining Â
+
+    // Multi-byte mojibake sequences (less common but possible)
     [/â€™/g, "'"],      // Right single quote
     [/â€˜/g, "'"],      // Left single quote
     [/â€œ/g, '"'],      // Left double quote
-    [/â€[^a-zA-Z0-9]/g, '"'],  // Right double quote (â€ followed by control char)
-    [/â€\u009D/g, '"'], // Right double quote with control char
-
-    // Dashes
+    [/â€/g, '"'],      // Right double quote
     [/â€"/g, '—'],      // Em dash
     [/â€"/g, '–'],      // En dash
-
-    // Ellipsis
     [/â€¦/g, '…'],      // Ellipsis
 
-    // Non-breaking space patterns
-    [/Â /g, ' '],       // NBSP decoded as Â + space
-    [/Â(?=[a-zA-Z])/g, ''], // Â before letters (orphaned from NBSP)
-
-    // Other common issues
+    // Accented characters
     [/Ã©/g, 'é'],       // e with acute
     [/Ã¨/g, 'è'],       // e with grave
     [/Ã¢/g, 'â'],       // a with circumflex
@@ -122,21 +133,13 @@ export function fixEncodingIssues(text: string): string {
     [/Ã¯/g, 'ï'],       // i with umlaut
     [/Ã¿/g, 'ÿ'],       // y with umlaut
 
-    // Control character names that might appear
-    [/\bPAD\b(?!\w)/g, ''],   // Padding character
-    [/\bNBSP\b(?!\w)/g, ' '], // Non-breaking space as text
-    [/\bST\b(?=\s|$)/g, ''],  // String terminator (only when standalone)
-
-    // Orphaned combining characters
+    // Control characters
     [/\u0080/g, ''],    // PAD control character
     [/\u0081/g, ''],    // HOP control character
     [/\u008D/g, ''],    // RI control character
     [/\u008F/g, ''],    // SS3 control character
     [/\u0090/g, ''],    // DCS control character
     [/\u009D/g, ''],    // OSC control character
-
-    // Clean up any remaining Â that appears alone or with unexpected chars
-    [/Â(?=[^\w\s])/g, ''],
   ];
 
   for (const [pattern, replacement] of replacements) {
