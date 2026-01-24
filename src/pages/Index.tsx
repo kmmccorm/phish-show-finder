@@ -86,8 +86,7 @@ const Index = () => {
               Phish Show Finder
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Discover setlists, venues, and details for Phish shows throughout their history.
-              Select a date to get started.
+              As simple as it sounds - enter a date to see the show details.
             </p>
           </div>
 
