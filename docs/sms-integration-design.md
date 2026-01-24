@@ -1,15 +1,18 @@
-# SMS Integration Design for Phish Show Finder
+# SMS/MMS Integration Design for Phish Show Finder
 
 ## Overview
-Design for adding SMS/text message capability to trigger Phish.net API calls and receive formatted show information via text message.
+Design for adding SMS/MMS (text and multimedia messaging) capability to trigger Phish.net API calls and receive formatted show information via text message with optional rich media (images, venue photos, setlist graphics).
 
 ## Design Goals
 - Leverage existing API client and data processing code
 - Minimal code duplication
+- Support both SMS (text-only) and MMS (text + images)
 - Handle SMS-specific constraints (160 char limit, no rich formatting)
+- Enhance experience with MMS (venue photos, setlist images, visual graphics)
 - Support natural language date parsing
-- Graceful error handling via SMS
-- Cost-effective (minimize SMS message count)
+- Graceful error handling via SMS/MMS
+- Cost-effective (balance between SMS and MMS usage)
+- Smart media selection (only send images when they add value)
 
 ---
 
@@ -65,11 +68,11 @@ Design for adding SMS/text message capability to trigger Phish.net API calls and
 │   User      │
 │   Phone     │
 └──────┬──────┘
-       │ SMS: "7/14/23"
+       │ SMS: "7/14/23" or "7/14/23 pic"
        ▼
 ┌─────────────────────┐
 │   Twilio API        │
-│   (SMS Gateway)     │
+│   (SMS/MMS Gateway) │
 └──────┬──────────────┘
        │ Webhook POST
        ▼
@@ -77,9 +80,10 @@ Design for adding SMS/text message capability to trigger Phish.net API calls and
 │  Backend Service (Vercel Function)  │
 │                                     │
 │  ┌──────────────────────────────┐  │
-│  │  SMS Handler                 │  │
+│  │  Message Handler             │  │
 │  │  - Parse incoming message    │  │
 │  │  - Extract date              │  │
+│  │  - Detect MMS preference     │  │
 │  │  - Validate input            │  │
 │  └────────┬─────────────────────┘  │
 │           │                         │
@@ -91,10 +95,11 @@ Design for adding SMS/text message capability to trigger Phish.net API calls and
 │  └────────┬─────────────────────┘  │
 │           │                         │
 │  ┌────────▼─────────────────────┐  │
-│  │  SMS Formatter               │  │
+│  │  Message Formatter           │  │
 │  │  - Format show as text       │  │
+│  │  - Generate setlist image    │  │
+│  │  - Select venue photo        │  │
 │  │  - Handle pagination         │  │
-│  │  - Truncate/summarize        │  │
 │  └────────┬─────────────────────┘  │
 │           │                         │
 └───────────┼─────────────────────────┘
@@ -418,38 +423,57 @@ TWILIO_PHONE_NUMBER=+1555...
 
 ---
 
-## SMS Constraints & Solutions
+## SMS/MMS Constraints & Solutions
 
 ### 1. Character Limit (160 chars/SMS)
-**Solution**: Multi-message strategy
-- Message 1: Summary (header + first 3 songs per set)
-- Message 2+: Full setlist (on request or auto-send)
+**Problem**: SMS limited to 160 characters
+**Solution**: Multi-message or MMS strategy
+- **SMS Mode**: Message 1: Summary (header + first 3 songs per set), Message 2+: Full setlist
+- **MMS Mode**: Single message with image containing full setlist
 
-### 2. No Rich Formatting
-**Solution**: Use unicode symbols
-- 🎸 Artist
-- 📍 Location
-- ⭐ Rating
-- • Bullet points
-- `>` Transition markers
+### 2. Rich Formatting
+**SMS Limitation**: No rich formatting
+**Solution**: Use unicode symbols OR upgrade to MMS
+- **SMS**: 🎸 Artist, 📍 Location, ⭐ Rating, • Bullets, `>` Transitions
+- **MMS**: Send formatted setlist as image with proper typography, colors, and venue photo
 
-### 3. Costs (Twilio pricing: ~$0.0079/SMS)
-**Solution**:
-- Smart truncation (send summary by default)
-- "Reply MORE" for full details
+### 3. Costs (Twilio pricing: ~$0.0079/SMS, ~$0.02/MMS)
+**Problem**: MMS costs 2.5x more than SMS
+**Solution**: Smart media selection
+- Default to SMS for simple queries
+- Use MMS when user requests ("7/14/23 pic", "7/14/23 image")
+- Auto-MMS for shows with notable venues or ratings >4.5
+- Remember user preference per phone number
 - Cache recent queries to avoid duplicate API calls
 
-### 4. Rate Limiting
+### 4. Image Generation
+**Problem**: Need to create setlist images dynamically
+**Solution**: Multiple approaches
+- **Option A**: HTML Canvas + node-canvas (generate programmatically)
+- **Option B**: Puppeteer (screenshot HTML template)
+- **Option C**: Sharp + SVG (template-based rendering)
+- **Recommendation**: Use Puppeteer for high-quality, customizable images
+
+### 5. Media Hosting
+**Problem**: MMS requires publicly accessible URLs for images
+**Solution**: Temporary URL generation
+- Upload generated images to Vercel Blob Storage or AWS S3
+- Generate signed URL with 1-hour expiration
+- Clean up old images after 24 hours
+- Alternative: Use Twilio's MediaUrl (auto-hosted for 90 days)
+
+### 6. Rate Limiting
 **Solution**:
 - Track requests per phone number
-- Max 5 requests per hour per number
+- Max 5 requests per hour per number (SMS + MMS combined)
+- MMS counts as 2 requests (more resource intensive)
 - Return error: "Too many requests. Try again in X minutes"
 
 ---
 
 ## User Interaction Flows
 
-### Flow 1: Basic Date Query
+### Flow 1: Basic Date Query (SMS)
 ```
 User: "7/14/23"
 Bot:  "🎸 Phish 7/14/23
@@ -465,16 +489,44 @@ Bot:  "🎸 Phish 7/14/23
       Encore:
       Rocky Top, Tweezer Reprise
 
-      View: https://phish.net/..."
+      View: https://phish.net/...
+
+      Reply PIC for image"
 ```
 
-### Flow 2: Invalid Date
+### Flow 2: MMS Request with Image
+```
+User: "7/14/23 pic"
+Bot:  [Sends MMS with:]
+      - Text: "🎸 Phish - July 14, 2023
+               📍 Merriweather Post Pavilion
+               Columbia, MD"
+      - Image: Beautiful setlist graphic showing:
+        * Venue photo (background)
+        * Full setlist with proper formatting
+        * Show rating and tour name
+        * QR code linking to Phish.net
+```
+
+### Flow 3: Auto-MMS for Notable Shows
+```
+User: "12/31/23"
+Bot:  [Automatically sends MMS for NYE show:]
+      - Text: "🎉 NYE 2023 - Madison Square Garden
+               ⭐ 4.8/5 (Outstanding show!)"
+      - Image: Stunning setlist graphic with:
+        * MSG venue photo
+        * Full 3-set + encore setlist
+        * "New Year's Eve" special badge
+```
+
+### Flow 4: Invalid Date
 ```
 User: "asdfgh"
 Bot:  "Invalid date. Try: 7/14/23 or 2023-07-14"
 ```
 
-### Flow 3: No Show Found
+### Flow 5: No Show Found
 ```
 User: "1/1/2025"
 Bot:  "No Phish show was found on 2025-01-01. Try selecting a different date."
@@ -619,20 +671,60 @@ describe('formatShowForSMS', () => {
 
 ## Cost Analysis
 
-### Twilio Pricing (US, Jan 2024)
+### Twilio Pricing (US, 2024)
 - Incoming SMS: $0.0085/message
 - Outgoing SMS: $0.0079/message
+- Incoming MMS: $0.0085/message
+- Outgoing MMS: $0.02/message (US carriers)
 - Phone number: $1.15/month
 
-### Monthly Cost Estimate (100 users, 10 queries/user/month)
+### Scenario 1: SMS Only (100 users, 10 queries/user/month)
 - Incoming: 1,000 × $0.0085 = $8.50
 - Outgoing: 2,000 × $0.0079 = $15.80 (avg 2 messages per query)
 - Phone: $1.15
-- **Total**: ~$25.45/month
+- **Total**: ~$25.45/month (~$0.025 per query)
 
-### Vercel Pricing
+### Scenario 2: Mixed SMS/MMS (100 users, 20% use MMS)
+- Incoming: 1,000 × $0.0085 = $8.50
+- Outgoing SMS: 800 × $0.0079 = $6.32 (80% SMS)
+- Outgoing MMS: 200 × $0.02 = $4.00 (20% MMS)
+- Phone: $1.15
+- **Total**: ~$20/month (~$0.02 per query)
+
+### Scenario 3: MMS-First (100 users, 80% use MMS)
+- Incoming: 1,000 × $0.0085 = $8.50
+- Outgoing SMS: 200 × $0.0079 = $1.58 (20% SMS)
+- Outgoing MMS: 800 × $0.02 = $16.00 (80% MMS)
+- Phone: $1.15
+- **Total**: ~$27/month (~$0.027 per query)
+
+### Storage Costs (for MMS images)
+**Vercel Blob Storage**:
+- Free tier: 500MB storage, 5GB bandwidth
+- Sufficient for ~5,000 MMS images (100KB each)
+- Paid: $0.15/GB storage, $0.30/GB bandwidth
+
+**Alternative: AWS S3**:
+- ~$0.023/GB storage
+- Minimal cost for temporary images (auto-delete after 24h)
+
+### Compute Costs
+**Vercel Functions**:
 - Hobby tier: Free (100GB bandwidth, 100 hours compute)
-- Should be sufficient for moderate usage
+- Image generation adds ~2-3 seconds per MMS
+- Should handle moderate usage on free tier
+- Pro tier ($20/month) recommended for >1,000 queries/month
+
+### Total Monthly Cost Comparison
+| Usage Pattern | Users | Queries/mo | Cost/mo | Cost/query |
+|---------------|-------|------------|---------|------------|
+| SMS Only | 100 | 1,000 | $25 | $0.025 |
+| Smart MMS (20%) | 100 | 1,000 | $20 | $0.020 |
+| MMS Heavy (80%) | 100 | 1,000 | $27 | $0.027 |
+| High Volume SMS | 500 | 5,000 | $125 | $0.025 |
+| High Volume MMS | 500 | 5,000 | $135 | $0.027 |
+
+**Recommendation**: Use smart MMS strategy (auto-MMS for special shows, SMS for regular queries) to minimize costs while maximizing user experience.
 
 ---
 
@@ -652,12 +744,19 @@ describe('formatShowForSMS', () => {
 
 ## Future Enhancements
 
-1. **MMS Support**: Send images (venue photos, setlist screenshots)
+1. **Enhanced MMS**: Advanced image features
+   - Animated GIFs for jam segments
+   - Video clips from shows (YouTube integration)
+   - Interactive maps showing tour routes
+   - Venue seating charts
+
 2. **Two-way Commands**: "MORE", "STATS", "RANDOM", "SEARCH <song>"
 3. **Subscriptions**: "NOTIFY me of new shows"
-4. **Personalization**: Remember user preferences
+4. **Personalization**: Remember user preferences (SMS vs MMS, favorite songs)
 5. **Group Messaging**: Share shows with friends
 6. **Voice Support**: Call-in option for accessibility
+7. **AI-Generated Images**: Create unique artistic representations of shows using DALL-E
+8. **Social Sharing**: Generate Instagram/Twitter-ready images with custom branding
 
 ---
 

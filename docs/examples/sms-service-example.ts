@@ -1,8 +1,8 @@
 /**
- * Example: SMS Service (Twilio Integration)
+ * Example: SMS/MMS Service (Twilio Integration)
  * Path: /api/backend/services/sms-service.ts
  *
- * Handles sending SMS messages and validating Twilio webhooks
+ * Handles sending SMS and MMS messages and validating Twilio webhooks
  */
 
 import twilio from 'twilio';
@@ -20,7 +20,7 @@ if (!accountSid || !authToken || !twilioPhoneNumber) {
 const client = twilio(accountSid, authToken);
 
 /**
- * Send an SMS message
+ * Send an SMS message (text only)
  */
 export async function sendSMS(to: string, body: string): Promise<void> {
   try {
@@ -36,6 +36,47 @@ export async function sendSMS(to: string, body: string): Promise<void> {
   } catch (error) {
     console.error('Failed to send SMS:', error);
     throw new Error(`SMS delivery failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Send an MMS message (text + image)
+ */
+export async function sendMMS(
+  to: string,
+  body: string,
+  mediaUrl: string | string[]
+): Promise<void> {
+  try {
+    console.log(`Sending MMS to ${to}: ${body.substring(0, 50)}...`);
+    console.log(`Media: ${Array.isArray(mediaUrl) ? mediaUrl.join(', ') : mediaUrl}`);
+
+    const message = await client.messages.create({
+      body,
+      from: twilioPhoneNumber,
+      to,
+      mediaUrl: Array.isArray(mediaUrl) ? mediaUrl : [mediaUrl],
+    });
+
+    console.log(`MMS sent successfully. SID: ${message.sid}`);
+  } catch (error) {
+    console.error('Failed to send MMS:', error);
+    throw new Error(`MMS delivery failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Send either SMS or MMS based on whether media is provided
+ */
+export async function sendMessage(
+  to: string,
+  body: string,
+  mediaUrl?: string | string[]
+): Promise<void> {
+  if (mediaUrl) {
+    await sendMMS(to, body, mediaUrl);
+  } else {
+    await sendSMS(to, body);
   }
 }
 

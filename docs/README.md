@@ -1,35 +1,36 @@
-# SMS Integration Documentation
+# SMS/MMS Integration Documentation
 
-This directory contains the complete design and implementation guide for adding SMS/text message support to the Phish Show Finder application.
+This directory contains the complete design and implementation guide for adding SMS (text messaging) and MMS (multimedia messaging with images) support to the Phish Show Finder application.
 
 ## 📚 Documentation Overview
 
-### 1. [SMS Integration Design](./sms-integration-design.md)
+### 1. [SMS/MMS Integration Design](./sms-integration-design.md)
 **Comprehensive design document covering**:
 - Architecture options (Vercel, Node.js, AWS Lambda)
 - System architecture and data flow
 - Component design and specifications
 - Code reuse strategy
-- SMS constraints and solutions
+- SMS/MMS constraints and solutions
+- Image generation strategies
 - User interaction flows
 - Error handling
 - Implementation phases
 - Testing strategy
 - Security considerations
-- Cost analysis
+- Cost analysis (SMS vs MMS)
 
 👉 **Start here** to understand the overall approach and architecture.
 
-### 2. [SMS Implementation Guide](./sms-implementation-guide.md)
+### 2. [SMS/MMS Implementation Guide](./sms-implementation-guide.md)
 **Step-by-step implementation instructions**:
-- Twilio account setup
+- Twilio account setup (SMS + MMS)
 - Project structure
-- Dependencies installation
-- Environment configuration
+- Dependencies installation (including image generation)
+- Environment configuration (storage setup)
 - Core file implementation
 - Vercel deployment
 - Webhook configuration
-- Testing procedures
+- Testing procedures (SMS and MMS)
 - Production optimizations
 - Troubleshooting
 
@@ -56,8 +57,15 @@ This directory contains the complete design and implementation guide for adding 
   - Multi-message chunking
   - Summary vs. full setlist
 
+- **[mms-formatter-example.ts](./examples/mms-formatter-example.ts)** ⭐ NEW
+  - Setlist image generation using Puppeteer
+  - HTML template rendering
+  - Image storage (Vercel Blob/S3)
+  - Smart MMS detection logic
+  - Multiple style themes
+
 - **[sms-service-example.ts](./examples/sms-service-example.ts)**
-  - Twilio integration
+  - Twilio SMS/MMS integration
   - Webhook validation
   - Rate limiting
   - Opt-out handling
@@ -92,9 +100,9 @@ The design **maximizes code reuse** from the existing web app:
 - ✅ Date utilities
 - ✅ Type definitions
 
-**New code needed**: ~600 lines (date parser, SMS formatter, Twilio integration)
+**New code needed**: ~800 lines (date parser, SMS/MMS formatter, image generation, Twilio integration)
 
-### Data Flow
+### Data Flow - SMS
 ```
 User texts "7/14/23"
   ↓
@@ -113,55 +121,110 @@ Send SMS via Twilio
 User receives formatted show info
 ```
 
-### SMS Constraints
+### Data Flow - MMS
+```
+User texts "7/14/23 pic"
+  ↓
+Twilio → POST /api/sms/incoming
+  ↓
+Parse date + detect MMS request
+  ↓
+fetchShowByDate() [EXISTING CODE]
+  ↓
+transformShowData() [EXISTING CODE]
+  ↓
+generateSetlistImage() [NEW CODE]
+  ↓
+Upload to Blob Storage → Get URL
+  ↓
+Send MMS with image via Twilio
+  ↓
+User receives beautiful setlist image
+```
+
+### SMS vs MMS
+**SMS (Text Only)**:
 - **160 characters** per message
 - **No rich formatting** (use emojis instead)
-- **Costs money** (~$0.008 per message)
+- **Lower cost** (~$0.008 per message)
+- Best for quick queries
+
+**MMS (With Images)**:
+- **No character limit** (reasonable text)
+- **Rich visuals** (setlist images, venue photos)
+- **Higher cost** (~$0.02 per message)
+- Best for special shows, visual sharing
+
+**Smart Strategy**:
+- Default to SMS for regular queries
+- Auto-MMS for special shows (NYE, Halloween, high-rated)
+- MMS on request ("7/14/23 pic")
+- Remember user preference
+
+**Common Requirements**:
 - **Rate limiting** needed (prevent abuse)
 - **Opt-out required** by law (STOP command)
+- **Image storage** for MMS (Vercel Blob or S3)
 
 ---
 
 ## 📋 Implementation Phases
 
 ### Phase 1: MVP (1-2 days)
-Basic functionality:
+Basic SMS functionality:
 - ✅ Simple date parsing (M/D/YY only)
 - ✅ Show lookup
 - ✅ SMS formatting (summary)
 - ✅ Error handling
 - ✅ Webhook security
 
-### Phase 2: Enhanced (1 day)
-Better UX:
+### Phase 2: MMS & Enhanced UX (2-3 days)
+Rich media and better UX:
+- ✅ MMS image generation (Puppeteer)
+- ✅ Image storage (Vercel Blob/S3)
+- ✅ Smart MMS detection
 - ✅ Natural language dates
 - ✅ Multi-message support
 - ✅ Rate limiting
 - ✅ Caching
 
-### Phase 3: Advanced (2-3 days)
+### Phase 3: Advanced Features (2-3 days)
 Power features:
 - ✅ Commands (LAST, RANDOM, SEARCH)
 - ✅ Location queries
 - ✅ Song search
-- ✅ User preferences
+- ✅ User preferences (SMS vs MMS)
+- ✅ Custom image styles
+- ✅ Venue photos integration
 
 ---
 
 ## 💰 Cost Estimate
 
-### Monthly Costs (100 users, 10 queries each)
+### Monthly Costs - SMS Only (100 users, 10 queries each)
 | Item | Cost |
 |------|------|
 | Twilio phone number | $1.15 |
 | Incoming SMS (1,000) | $8.50 |
 | Outgoing SMS (2,000) | $15.80 |
 | Vercel hosting | Free |
-| **Total** | **~$25/month** |
+| **Total** | **~$25/month** (~$0.025/query) |
+
+### Monthly Costs - Smart MMS (100 users, 20% use MMS)
+| Item | Cost |
+|------|------|
+| Twilio phone number | $1.15 |
+| Incoming SMS (1,000) | $8.50 |
+| Outgoing SMS (800) | $6.32 |
+| Outgoing MMS (200) | $4.00 |
+| Vercel Blob Storage | Free (under 500MB) |
+| **Total** | **~$20/month** (~$0.02/query) |
+
+**Recommendation**: Use smart MMS (auto-MMS for special shows only) to balance cost and experience.
 
 ### Free Tier
 - Twilio: $15 trial credit
-- Vercel: Free for hobby projects
+- Vercel: Free for hobby projects (includes Blob storage)
 - **Cost to try it**: $0
 
 ---

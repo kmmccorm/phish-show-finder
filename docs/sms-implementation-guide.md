@@ -1,8 +1,8 @@
-# SMS Integration - Implementation Guide
+# SMS/MMS Integration - Implementation Guide
 
 ## Quick Reference
 
-This guide provides step-by-step instructions for implementing SMS integration with the Phish Show Finder app.
+This guide provides step-by-step instructions for implementing SMS and MMS (multimedia messaging) integration with the Phish Show Finder app.
 
 ---
 
@@ -24,8 +24,9 @@ This guide provides step-by-step instructions for implementing SMS integration w
 
 ### 1.2 Get a Phone Number
 1. In Twilio Console, go to Phone Numbers > Manage > Buy a number
-2. Select a number with SMS capabilities
-3. Purchase number (costs $1.15/month after trial)
+2. Select a number with **SMS and MMS capabilities**
+3. Make sure "MMS" checkbox is enabled when searching
+4. Purchase number (costs $1.15/month after trial)
 
 ### 1.3 Get API Credentials
 1. In Twilio Console, go to Settings > General
@@ -68,6 +69,14 @@ npm install -D @vercel/node
 
 # Install date parsing library (optional)
 npm install date-fns
+
+# MMS Support - Image Generation
+npm install puppeteer-core @sparticuz/chromium
+
+# MMS Support - Image Storage (choose one)
+npm install @vercel/blob  # Option A: Vercel Blob Storage (recommended)
+# OR
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner  # Option B: AWS S3
 ```
 
 Update `package.json`:
@@ -75,13 +84,21 @@ Update `package.json`:
 ```json
 {
   "dependencies": {
-    "twilio": "^4.19.0"
+    "twilio": "^4.19.0",
+    "puppeteer-core": "^21.0.0",
+    "@sparticuz/chromium": "^119.0.0",
+    "@vercel/blob": "^0.15.0"
   },
   "devDependencies": {
     "@vercel/node": "^3.0.0"
   }
 }
 ```
+
+**Note**: Puppeteer + Chromium adds ~50MB to deployment. For lighter alternatives, consider:
+- `node-canvas` (lighter but less flexible)
+- `sharp` + SVG templates (fastest, more complex)
+- External image generation service (e.g., Cloudinary, Imgix)
 
 ---
 
@@ -93,11 +110,35 @@ Add to `.env.local`:
 # Existing variables
 VITE_PHISH_API_KEY=your_phish_api_key
 
-# New Twilio variables
+# Twilio SMS/MMS variables
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_PHONE_NUMBER=+15551234567
+
+# MMS Image Storage (Option A: Vercel Blob - Recommended)
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxx
+
+# OR (Option B: AWS S3)
+# AWS_ACCESS_KEY_ID=your_access_key
+# AWS_SECRET_ACCESS_KEY=your_secret_key
+# AWS_S3_BUCKET=phish-show-setlists
+# AWS_REGION=us-east-1
+
+# MMS Feature Toggle (optional - defaults to enabled)
+ENABLE_MMS=true
 ```
+
+**Setting up Vercel Blob Storage**:
+1. Go to Vercel Dashboard > Storage > Create Database
+2. Select "Blob"
+3. Copy the `BLOB_READ_WRITE_TOKEN`
+4. Add to environment variables
+
+**Setting up AWS S3** (alternative):
+1. Create S3 bucket in AWS Console
+2. Create IAM user with S3 permissions
+3. Generate access keys
+4. Add credentials to environment variables
 
 **IMPORTANT**: Never commit these to git. Add to `.gitignore`:
 
@@ -207,13 +248,13 @@ vercel logs --follow
 
 ## Step 8: Testing
 
-### 8.1 Manual Testing
+### 8.1 SMS Testing
 
 Test these scenarios:
 
-**Valid Dates**:
-- `7/14/23` → Should return show from July 14, 2023
-- `2023-12-31` → Should return NYE show
+**Valid Dates (SMS)**:
+- `7/14/23` → Should return text-only show summary
+- `2023-12-31` → Should return NYE show (may auto-trigger MMS)
 - `yesterday` → Should return yesterday's show (if any)
 
 **Invalid Dates**:
@@ -226,11 +267,38 @@ Test these scenarios:
 - Very long setlist → Should split into multiple SMS
 - API timeout → Should return error message
 
-### 8.2 Rate Limiting
+### 8.2 MMS Testing
+
+Test MMS-specific scenarios:
+
+**Explicit MMS Request**:
+- `7/14/23 pic` → Should send MMS with setlist image
+- `7/14/23 image` → Should send MMS with setlist image
+- `12/31/23 mms` → Should send MMS with NYE show image
+
+**Auto-MMS Triggers** (if enabled):
+- `12/31/23` → NYE show should auto-send MMS
+- `10/31/23` → Halloween show should auto-send MMS
+- High-rated show (>4.5) → Should auto-send MMS
+
+**Image Quality Check**:
+1. Verify image is properly formatted
+2. Check that text is readable
+3. Confirm venue/date/rating are visible
+4. Ensure full setlist is shown
+5. Verify image loads within 5 seconds
+
+**Storage Verification**:
+- Check that image URL is publicly accessible
+- Verify image expires after 24 hours (if configured)
+- Confirm no broken image links
+
+### 8.3 Rate Limiting
 
 Send 6 messages quickly:
 - First 5 should work
 - 6th should return "too many requests" error
+- MMS should count as 2 requests (verify)
 
 ### 8.3 Opt-Out
 
