@@ -5,6 +5,7 @@
 
 import { Show, SongItem, Set } from "../types/show";
 import { organizeSongsIntoSets } from "./setlist-utils";
+import { fixEncodingIssues } from "../lib/sanitize";
 
 /**
  * Transform raw API data into structured show objects
@@ -50,7 +51,7 @@ export function transformShowData(rawData: any[]): Show[] {
           city: item.city || "",
           state: item.state || "",
           country: item.country || "",
-          setlistnotes: item.setlistnotes || "",
+          setlistnotes: fixEncodingIssues(item.setlistnotes || ""),
           artist_name: item.artist_name || "Phish",
           venueid: item.venueid || "",
           rating: item.rating || "",
