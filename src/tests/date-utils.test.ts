@@ -2,7 +2,8 @@
  * Tests for date utility functions
  */
 
-import { formatShowDate, formatDateToString } from '../services/date-utils';
+import { describe, expect, test } from 'vitest';
+import { formatShowDate, formatDateToString, parseDateInput, parseIsoDate } from '../services/date-utils';
 
 describe('formatShowDate', () => {
   test('should format valid YYYY-MM-DD date strings', () => {
@@ -53,10 +54,8 @@ describe('formatShowDate', () => {
 
   test('should handle empty or null input', () => {
     expect(formatShowDate('')).toBe('');
-    // @ts-ignore: Testing with null
-    expect(formatShowDate(null)).toBe('');
-    // @ts-ignore: Testing with undefined
-    expect(formatShowDate(undefined)).toBe('');
+    expect(formatShowDate(null as never)).toBe('');
+    expect(formatShowDate(undefined as never)).toBe('');
   });
 
   test('should handle malformed strings', () => {
@@ -110,5 +109,71 @@ describe('formatDateToString', () => {
   test('should handle leap year date', () => {
     const date = new Date(2024, 1, 29); // February 29, 2024
     expect(formatDateToString(date)).toBe('2024-02-29');
+  });
+});
+
+describe('parseIsoDate', () => {
+  test('parses a valid date at local midnight', () => {
+    expect(parseIsoDate('1997-12-31')).toEqual(new Date(1997, 11, 31));
+  });
+
+  test('rejects anything that is not a real YYYY-MM-DD date', () => {
+    expect(parseIsoDate('2023-02-30')).toBeNull();
+    expect(parseIsoDate('1997-12-3')).toBeNull();
+    expect(parseIsoDate('12/31/1997')).toBeNull();
+    expect(parseIsoDate('')).toBeNull();
+    expect(parseIsoDate(null as never)).toBeNull();
+  });
+});
+
+describe('parseDateInput', () => {
+  const nye95 = new Date(1995, 11, 31);
+
+  test.each([
+    '12/31/1995',
+    '12-31-1995',
+    '12.31.1995',
+    '12/31/95',
+    '12311995',
+    '1995-12-31',
+    'Dec 31 1995',
+    'dec. 31, 1995',
+    'December 31st, 1995',
+    '31 Dec 1995',
+    '31st December 95',
+    '  12/31/1995  ',
+  ])('parses %s', (input) => {
+    expect(parseDateInput(input)).toEqual(nye95);
+  });
+
+  test('parses single-digit months and days', () => {
+    expect(parseDateInput('7/4/2000')).toEqual(new Date(2000, 6, 4));
+    expect(parseDateInput('Sept 9 1999')).toEqual(new Date(1999, 8, 9));
+  });
+
+  test('expands two-digit years around the first show in 1983', () => {
+    expect(parseDateInput('12/2/83')?.getFullYear()).toBe(1983);
+    expect(parseDateInput('12/31/99')?.getFullYear()).toBe(1999);
+    expect(parseDateInput('8/7/09')?.getFullYear()).toBe(2009);
+    expect(parseDateInput('8/7/24')?.getFullYear()).toBe(2024);
+  });
+
+  test('can require a four-digit year', () => {
+    expect(parseDateInput('12/31/19', { allowTwoDigitYear: false })).toBeNull();
+    expect(parseDateInput('12/31/1995', { allowTwoDigitYear: false })).toEqual(nye95);
+  });
+
+  test('rejects dates that do not exist', () => {
+    expect(parseDateInput('2/30/1995')).toBeNull();
+    expect(parseDateInput('13/1/1995')).toBeNull();
+    expect(parseDateInput('Feb 29 2023')).toBeNull();
+  });
+
+  test('rejects text that is not a date', () => {
+    expect(parseDateInput('')).toBeNull();
+    expect(parseDateInput('tweezer')).toBeNull();
+    expect(parseDateInput('Foo 31 1995')).toBeNull();
+    expect(parseDateInput('12/31')).toBeNull();
+    expect(parseDateInput('12/31/199')).toBeNull();
   });
 });

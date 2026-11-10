@@ -1,6 +1,5 @@
-
 import * as React from "react";
-import { format, parse, isValid, startOfDay } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,176 +10,141 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { FIRST_SHOW_DATE, parseDateInput } from "@/services/date-utils";
 
 interface DateSelectorProps {
   date: Date | undefined;
   onDateChange: (date: Date | undefined) => void;
   minDate?: Date;
   maxDate?: Date;
-  disabled?: boolean;
+  className?: string;
 }
+
+const DISPLAY_FORMAT = "MM/dd/yyyy";
+const HINT = 'Type a date like "12/31/95" or "Dec 31 1995", or pick one from the calendar.';
 
 const DateSelector: React.FC<DateSelectorProps> = ({
   date,
   onDateChange,
   minDate,
   maxDate,
-  disabled = false,
+  className,
 }) => {
-  // Helper function to normalize dates to midnight (start of day)
-  // This prevents timezone and time-of-day comparison issues
-  const normalizeDate = (date: Date): Date => {
-    return startOfDay(date);
-  };
+  // Compare whole days only, so time of day never affects the range check.
+  // Defaults: Phish's first show through today.
+  const min = startOfDay(minDate ?? FIRST_SHOW_DATE);
+  const max = startOfDay(maxDate ?? new Date());
 
-  // Default min date to Phish's first show: December 2, 1983 at midnight
-  const defaultMinDate = normalizeDate(new Date(1983, 11, 2));
+  const [text, setText] = React.useState(date ? format(date, DISPLAY_FORMAT) : "");
+  const [error, setError] = React.useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
+  const messageId = React.useId();
 
-  // Default max date to today at midnight
-  const defaultMaxDate = normalizeDate(new Date());
-
-  // Use provided dates or defaults, normalized to midnight
-  const actualMinDate = minDate ? normalizeDate(minDate) : defaultMinDate;
-  const actualMaxDate = maxDate ? normalizeDate(maxDate) : defaultMaxDate;
-
-  // State for input value
-  const [inputValue, setInputValue] = React.useState<string>(
-    date ? format(date, "MM/dd/yyyy") : ""
-  );
-
-  // Update input when date changes from calendar
+  // Show dates chosen elsewhere (calendar, URL) in the text box, but don't
+  // rewrite what the user typed when it already means the same day.
+  const dateTime = date?.getTime();
   React.useEffect(() => {
-    if (date) {
-      setInputValue(format(date, "MM/dd/yyyy"));
-    } else {
-      setInputValue("");
-    }
-  }, [date]);
+    setError(null);
+    setText((current) => {
+      const typed = parseDateInput(current);
+      if (dateTime === undefined) return typed ? "" : current;
+      return typed?.getTime() === dateTime ? current : format(dateTime, DISPLAY_FORMAT);
+    });
+  }, [dateTime]);
 
-  // Handle direct input changes with mask
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    
-    // Only allow numbers and slashes
-    let formatted = value.replace(/[^\d/]/g, "");
-    
-    // Apply the mask for MM/DD/YYYY format
-    if (formatted.length > 0) {
-      // Remove any existing slashes
-      formatted = formatted.replace(/\//g, "");
-      
-      // Add slashes in the correct positions
-      if (formatted.length > 2) {
-        formatted = formatted.slice(0, 2) + "/" + formatted.slice(2);
-      }
-      if (formatted.length > 5) {
-        formatted = formatted.slice(0, 5) + "/" + formatted.slice(5, 9);
-      }
-      
-      // Limit to MM/DD/YYYY format (10 characters)
-      formatted = formatted.slice(0, 10);
+  /**
+   * Try to turn the typed text into a selected date.
+   * @param final true when the user pressed Enter: two-digit years are
+   *   accepted and unreadable text is reported. While typing, only complete,
+   *   unambiguous dates are acted on.
+   */
+  const commit = (value: string, final: boolean) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setError(null);
+      if (date) onDateChange(undefined);
+      return;
     }
-    
-    setInputValue(formatted);
-    
-    // Try to parse the date if we have enough characters
-    if (formatted.length === 10) {
-      try {
-        const parsedDate = parse(formatted, "MM/dd/yyyy", new Date());
 
-        // Only update if it's a valid date and within range
-        // Normalize to midnight for consistent comparison
-        if (isValid(parsedDate)) {
-          const normalizedDate = normalizeDate(parsedDate);
-          if (normalizedDate >= actualMinDate && normalizedDate <= actualMaxDate) {
-            onDateChange(normalizedDate);
-          }
-        }
-      } catch (error) {
-        // Invalid format, don't update the date
-      }
-    } else if (formatted.length === 0) {
-      // Clear date if input is empty
-      onDateChange(undefined);
+    const parsed = parseDateInput(trimmed, { allowTwoDigitYear: final });
+    if (!parsed) {
+      setError(final ? "That doesn't look like a date. Try 12/31/1995." : null);
+      return;
     }
+    if (parsed < min) {
+      setError(`Phish's first show was ${format(min, "MMMM d, yyyy")}.`);
+      return;
+    }
+    if (parsed > max) {
+      setError("That date hasn't happened yet.");
+      return;
+    }
+
+    setError(null);
+    if (parsed.getTime() !== dateTime) onDateChange(parsed);
   };
 
-  // Handle key presses for better UX
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Prevent propagation to avoid closing popover
-    e.stopPropagation();
-    
-    // Handle backspace to delete the whole date
-    if (e.key === "Escape") {
-      setInputValue("");
-      onDateChange(undefined);
-    }
-    
-    // Handle enter to submit the date
-    if (e.key === "Enter" && inputValue.length === 10) {
-      try {
-        const parsedDate = parse(inputValue, "MM/dd/yyyy", new Date());
-        if (isValid(parsedDate)) {
-          const normalizedDate = normalizeDate(parsedDate);
-          if (normalizedDate >= actualMinDate && normalizedDate <= actualMaxDate) {
-            onDateChange(normalizedDate);
-          }
-        }
-      } catch (error) {
-        // Invalid format, don't update the date
-      }
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    commit(text, true);
   };
-  
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "w-full md:w-[280px] justify-start text-left font-normal transition-all",
-            !date && "text-muted-foreground",
-            "border-2 hover:border-primary/50 focus:border-primary p-0 overflow-hidden"
-          )}
-          disabled={disabled}
-        >
-          <div className="flex items-center w-full">
-            <CalendarIcon className="ml-3 h-4 w-4 opacity-70 shrink-0" />
-            <Input
-              type="text"
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="MM/DD/YYYY"
-              className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-9"
-              disabled={disabled}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent 
-        className="w-auto p-0 glass-panel" 
-        align="center"
-        sideOffset={5}
+    <form onSubmit={handleSubmit} className={cn("w-full md:w-[320px]", className)} noValidate>
+      <div
+        className={cn(
+          "flex items-center rounded-md border-2 bg-background transition-colors",
+          "hover:border-primary/50 focus-within:border-primary",
+          error && "border-destructive/60 hover:border-destructive/60 focus-within:border-destructive"
+        )}
       >
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={onDateChange}
-          disabled={(date) => {
-            // Normalize the date being checked for consistent comparison
-            const normalizedDate = normalizeDate(date);
-            return (
-              normalizedDate < actualMinDate ||
-              normalizedDate > actualMaxDate
-            );
+        <Input
+          type="text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            commit(e.target.value, false);
           }}
-          initialFocus
-          className={cn("p-3 pointer-events-auto")}
+          placeholder="MM/DD/YYYY"
+          aria-label="Show date"
+          aria-invalid={!!error}
+          aria-describedby={messageId}
+          autoComplete="off"
+          enterKeyHint="search"
+          className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
         />
-      </PopoverContent>
-    </Popover>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label="Choose date from calendar" className="shrink-0">
+              <CalendarIcon className="h-4 w-4 opacity-70" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end" sideOffset={8}>
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={(selected) => {
+                // Clicking the selected day again would deselect it; keep it instead.
+                if (selected) onDateChange(startOfDay(selected));
+                setCalendarOpen(false);
+              }}
+              defaultMonth={date ?? max}
+              fromDate={min}
+              toDate={max}
+              captionLayout="dropdown-buttons"
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <p
+        id={messageId}
+        role={error ? "alert" : undefined}
+        className={cn("mt-2 text-sm", error ? "text-destructive" : "text-muted-foreground")}
+      >
+        {error ?? HINT}
+      </p>
+    </form>
   );
 };
 
