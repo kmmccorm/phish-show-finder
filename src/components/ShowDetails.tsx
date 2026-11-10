@@ -22,12 +22,15 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
     return sanitizeHtml(show.setlistnotes, 'standard');
   }, [show.setlistnotes]);
 
-  console.log("Show data in component:", show);
-  console.log("Has songs:", hasSongs);
-  if (hasSongs) {
-    console.log("Sets data:", show.sets);
-  }
-  
+  // International shows have no state, and the country is only worth
+  // showing when it isn't the US.
+  const location = [
+    show.venue,
+    show.city,
+    show.state,
+    show.country && show.country !== "USA" ? show.country : "",
+  ].filter(Boolean).join(", ");
+
   return (
     <Card className={cn("w-full overflow-hidden glass-panel animate-slide-up", className)}>
       <CardHeader className="pb-3">
@@ -48,7 +51,7 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
             </CardTitle>
             <CardDescription className="flex items-center gap-1 pt-1 text-base">
               <MapPin className="h-4 w-4" />
-              <span>{show.venue}, {show.city}, {show.state}</span>
+              <span>{location}</span>
             </CardDescription>
           </div>
           
@@ -57,7 +60,9 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
               <div className="flex items-center gap-1">
                 <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
                 <span className="font-semibold">{show.rating}</span>
-                <span className="text-xs text-muted-foreground">({show.ratingcount} ratings)</span>
+                {show.ratingcount && (
+                  <span className="text-xs text-muted-foreground">({show.ratingcount} ratings)</span>
+                )}
               </div>
             )}
             {show.permalink && show.permalink.trim() !== '' && (
@@ -79,16 +84,16 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
       <CardContent className="pt-6">
         {hasSongs ? (
           <div className="space-y-6">
-            {show.sets?.map((set, setIndex) => (
-              <div key={setIndex}>
+            {show.sets?.map((set) => (
+              <div key={set.name}>
                 <h3 className="text-lg font-semibold flex items-center gap-2 mb-3">
                   <Music className="h-5 w-5 text-primary" />
                   {set.name}
                 </h3>
                 <ul className="space-y-1 pl-7">
                   {set.songs && set.songs.length > 0 ? (
-                    set.songs.map((song, songIndex) => (
-                      <li key={songIndex} className="list-disc text-muted-foreground flex items-center gap-1">
+                    set.songs.map((song) => (
+                      <li key={song.position} className="list-disc text-muted-foreground">
                         <span className={song.isjam ? "font-medium" : ""}>
                           {song.name}
                         </span>
@@ -117,11 +122,18 @@ const ShowDetails: React.FC<ShowDetailsProps> = ({ show, className }) => {
           </div>
         )}
         
-        {show.setlistnotes && (
+        {show.soundcheck && (
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="text-lg font-semibold mb-3">Soundcheck</h3>
+            <p className="text-muted-foreground">{show.soundcheck}</p>
+          </div>
+        )}
+
+        {sanitizedNotes && (
           <div className="mt-6 pt-6 border-t">
             <h3 className="text-lg font-semibold mb-3">Notes</h3>
             <div
-              className="text-muted-foreground"
+              className="text-muted-foreground space-y-3 [&_a]:text-primary [&_a]:underline"
               dangerouslySetInnerHTML={{ __html: sanitizedNotes }}
             />
           </div>

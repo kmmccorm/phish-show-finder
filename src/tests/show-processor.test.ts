@@ -3,7 +3,8 @@
  * Tests for show data processing utilities
  */
 
-import { transformShowData, extractShowTags } from '../services/show-processor';
+import { describe, expect, test } from 'vitest';
+import { transformShowData } from '../services/show-processor';
 
 // Sample raw data for testing
 const mockRawData = [
@@ -80,10 +81,8 @@ describe('transformShowData', () => {
   test('should handle empty or invalid data', () => {
     expect(transformShowData([])).toEqual([]);
     expect(transformShowData([{}])).toEqual([]);
-    // @ts-ignore: Testing with null
-    expect(transformShowData(null)).toEqual([]);
-    // @ts-ignore: Testing with undefined
-    expect(transformShowData(undefined)).toEqual([]);
+    expect(transformShowData(null as never)).toEqual([]);
+    expect(transformShowData(undefined as never)).toEqual([]);
   });
   
   test('should handle missing fields gracefully', () => {
@@ -235,48 +234,43 @@ describe('transformShowData', () => {
   });
 });
 
-describe('extractShowTags', () => {
-  test('should extract tags from raw data', () => {
-    const dataWithTags = [
-      {
-        showid: "1234",
-        tags: [
-          { name: "Jam" },
-          { name: "Debut" }
-        ]
-      },
-      {
-        showid: "1234",
-        tags: [
-          { name: "Jam" }, // Duplicate
-          { name: "Noteworthy" }
-        ]
-      }
-    ];
-    
-    const result = extractShowTags(dataWithTags);
-    
-    expect(Object.keys(result).length).toBe(1);
-    expect(result["1234"].length).toBe(3); // Should deduplicate
-    expect(result["1234"].some(t => t.name === "Jam")).toBeTruthy();
-    expect(result["1234"].some(t => t.name === "Debut")).toBeTruthy();
-    expect(result["1234"].some(t => t.name === "Noteworthy")).toBeTruthy();
+describe('transformShowData with real API shapes', () => {
+  test('accepts numeric ids, positions and jam flags', () => {
+    const result = transformShowData([
+      { showid: 1252691618, showdate: "1997-12-31", song: "Emotional Rescue", set: "1", position: 1, isjam: 0 },
+      { showid: 1252691618, showdate: "1997-12-31", song: "Tweezer", set: "2", position: 12, isjam: 1 },
+    ]);
+
+    expect(result.length).toBe(1);
+    expect(result[0].showid).toBe("1252691618");
+    expect(result[0].songs?.map(s => s.isjam)).toEqual([false, true]);
   });
-  
-  test('should handle missing or invalid tags', () => {
-    const invalidData = [
-      {
-        showid: "1234",
-        // No tags
-      },
-      {
-        showid: "5678",
-        tags: null
-      }
-    ];
-    
-    const result = extractShowTags(invalidData);
-    
-    expect(Object.keys(result).length).toBe(0);
+
+  test('keeps separate shows on the same date apart', () => {
+    const result = transformShowData([
+      { showid: 1, showdate: "2023-06-15", artist_name: "Trey Anastasio", song: "Sand", set: "1", position: 1 },
+      { showid: 2, showdate: "2023-06-15", artist_name: "Phish", song: "Fee", set: "1", position: 1 },
+    ]);
+
+    expect(result.map(show => show.artist_name)).toEqual(["Trey Anastasio", "Phish"]);
+    expect(result[1].songs?.length).toBe(1);
+  });
+
+  test('orders soundcheck, sets and encores', () => {
+    const row = (set: string, position: number) => ({ showid: 1, song: `Song ${position}`, set, position });
+    const result = transformShowData([row("e2", 6), row("e", 5), row("2", 3), row("s", 1), row("3", 4), row("1", 2)]);
+
+    expect(result[0].sets?.map(set => set.name)).toEqual(
+      ["Soundcheck", "Set 1", "Set 2", "Set 3", "Encore", "Encore 2"]
+    );
+  });
+
+  test('repairs mis-encoded text', () => {
+    const result = transformShowData([
+      { showid: 1, venue: "ThÃ©Ã¢tre St-Denis", setlistnotes: "Trey didnâ€™t sing.", song: "Fee", set: "1", position: 1 },
+    ]);
+
+    expect(result[0].venue).toBe("Théâtre St-Denis");
+    expect(result[0].setlistnotes).toBe("Trey didn’t sing.");
   });
 });

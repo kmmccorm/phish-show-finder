@@ -1,151 +1,86 @@
-
 /**
  * Utility functions for processing show data from the API
  */
 
-import { Show, SongItem, Set } from "../types/show";
+import type { RawSetlistRow, Show, SongItem, Tag } from "../types/show";
 import { organizeSongsIntoSets } from "./setlist-utils";
-import { fixEncodingIssues } from "../lib/sanitize";
+import { fixEncodingIssues } from "../lib/encoding";
+
+const text = (value: unknown): string => (value === null || value === undefined ? "" : String(value));
 
 /**
- * Transform raw API data into structured show objects
- * @param rawData Raw data from the Phish.net API
- * @returns Array of processed Show objects
+ * Transform raw API data into structured show objects.
+ *
+ * The API returns one row per song with the show's details repeated on each
+ * row; this groups those rows back into one object per show.
+ *
+ * @param rawData Raw rows from the Phish.net API
+ * @returns Array of processed Show objects, in the order first seen
  */
-export function transformShowData(rawData: any[]): Show[] {
-  if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
-    console.warn("No data to process in transformShowData");
+export function transformShowData(rawData: RawSetlistRow[]): Show[] {
+  if (!Array.isArray(rawData)) {
     return [];
   }
 
-  try {
-    // Group songs by showid first
-    const showsMap = new Map<string, Show>();
-    const songsMap = new Map<string, SongItem[]>();
-    const tagsMap = new Map<string, any[]>();
+  // Map preserves insertion order, so shows come out in the order the API listed them.
+  const shows = new Map<string, Show & { songs: SongItem[]; tags: Tag[] }>();
 
-    // First pass - collect all songs, basic show info, and tags
-    rawData.forEach((item: any) => {
-      if (!item || typeof item !== "object") {
-        console.warn("Invalid item in rawData", item);
-        return; // Skip invalid items
-      }
+  for (const item of rawData) {
+    if (!item || typeof item !== "object") continue;
 
-      const showId = item.showid;
-      if (!showId) {
-        console.warn("Item missing showid", item);
-        return; // Skip items without showid
-      }
+    // showid is numeric in the API; normalise so 123 and "123" are one show.
+    const showId = text(item.showid);
+    if (!showId) continue;
 
-      // Initialize the songs array for this show if it doesn't exist yet
-      if (!songsMap.has(showId)) {
-        songsMap.set(showId, []);
-        tagsMap.set(showId, []);
+    let show = shows.get(showId);
+    if (!show) {
+      show = {
+        showid: showId,
+        showdate: text(item.showdate),
+        permalink: text(item.permalink),
+        venue: fixEncodingIssues(text(item.venue)) || "Unknown Venue",
+        city: fixEncodingIssues(text(item.city)),
+        state: text(item.state),
+        country: text(item.country),
+        setlistnotes: fixEncodingIssues(text(item.setlistnotes)),
+        soundcheck: fixEncodingIssues(text(item.soundcheck)),
+        artist_name: text(item.artist_name) || "Phish",
+        venueid: text(item.venueid),
+        rating: text(item.rating),
+        ratingcount: text(item.ratingcount),
+        tours: item.tourname ? [{ id: text(item.tourid) || "0", name: item.tourname }] : [],
+        tags: [],
+        songs: [],
+      };
+      shows.set(showId, show);
+    }
 
-        // Initialize the show object
-        showsMap.set(showId, {
-          showid: item.showid || "",
-          showdate: item.showdate || "",
-          permalink: item.permalink || "",
-          venue: item.venue || "Unknown Venue",
-          city: item.city || "",
-          state: item.state || "",
-          country: item.country || "",
-          setlistnotes: fixEncodingIssues(item.setlistnotes || ""),
-          artist_name: item.artist_name || "Phish",
-          venueid: item.venueid || "",
-          rating: item.rating || "",
-          ratingcount: item.reviews || "0",
-          tours: item.tourname ? [{ id: item.tourid || "0", name: item.tourname }] : [],
-          tags: [], // Initialize empty tags array
-        });
-      }
-
-      // Collect tags from this item
-      if (item.tags && Array.isArray(item.tags)) {
-        const existingTags = tagsMap.get(showId) || [];
-        item.tags.forEach((tag: any) => {
-          // Only add unique tags (check if tag with same name already exists)
-          if (tag && tag.name && !existingTags.some(t => t.name === tag.name)) {
-            existingTags.push(tag);
-          }
-        });
-        tagsMap.set(showId, existingTags);
-      }
-
-      // Add this song to the show's songs array if it has a valid position
-      if (item.position && item.set) {
-        // Parse and validate position number
-        const parsedPosition = parseInt(item.position, 10);
-
-        // Only add song if position is a valid number
-        if (!isNaN(parsedPosition) && parsedPosition > 0) {
-          songsMap.get(showId)?.push({
-            name: item.song || "Unknown Song",
-            set: item.set,
-            position: parsedPosition,
-            transition: item.trans_mark || "",
-            footnote: item.footnote || "",
-            isjam: item.isjam === '1'
-          });
-        } else {
-          console.warn(`Invalid position "${item.position}" for song "${item.song}" in show ${showId}`);
+    if (Array.isArray(item.tags)) {
+      for (const tag of item.tags) {
+        if (tag?.name && !show.tags.some((existing) => existing.name === tag.name)) {
+          show.tags.push(tag);
         }
       }
-    });
+    }
 
-    // Convert the Maps to arrays for the response
-    const processedShows = Array.from(showsMap.values());
-
-    // Add songs, tags, and organize into sets
-    processedShows.forEach((show) => {
-      const songItems = songsMap.get(show.showid) || [];
-      show.songs = songItems;
-
-      // Organize songs into sets
-      show.sets = organizeSongsIntoSets(songItems);
-
-      // Add tags to the show
-      show.tags = tagsMap.get(show.showid) || [];
-    });
-
-    return processedShows;
-  } catch (error) {
-    console.error("Error in transformShowData:", error);
-    return [];
+    // A row is a song only if it has a set and a positive position.
+    const position = parseInt(text(item.position), 10);
+    const set = text(item.set);
+    if (set && Number.isFinite(position) && position > 0) {
+      show.songs.push({
+        name: fixEncodingIssues(text(item.song)) || "Unknown Song",
+        set,
+        position,
+        transition: text(item.trans_mark),
+        footnote: fixEncodingIssues(text(item.footnote)),
+        // The API sends this as 1/"1"; accept either.
+        isjam: Number(item.isjam) === 1,
+      });
+    }
   }
-}
 
-/**
- * Extract tags from raw API data
- * @param rawData Raw data from the API
- * @returns Tags for each show
- */
-export function extractShowTags(rawData: any[]): Record<string, any[]> {
-  const showTags: Record<string, any[]> = {};
-  
-  try {
-    rawData.forEach(item => {
-      if (!item || !item.showid || !item.tags) return;
-      
-      if (!showTags[item.showid]) {
-        showTags[item.showid] = [];
-      }
-      
-      // Only add unique tags
-      if (Array.isArray(item.tags)) {
-        item.tags.forEach((tag: any) => {
-          if (!showTags[item.showid].some(t => t.name === tag.name)) {
-            showTags[item.showid].push(tag);
-          }
-        });
-      }
-    });
-    
-    return showTags;
-  } catch (error) {
-    console.error("Error in extractShowTags:", error);
-    return {};
-  }
+  return Array.from(shows.values(), (show) => ({
+    ...show,
+    sets: organizeSongsIntoSets(show.songs),
+  }));
 }
-

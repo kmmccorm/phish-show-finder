@@ -3,11 +3,12 @@
  * Each error type has a user-friendly message for display
  */
 
+import { formatShowDate } from './date-utils';
+
 export type ApiErrorCode =
   | 'NETWORK_ERROR'
   | 'TIMEOUT'
   | 'SERVER_ERROR'
-  | 'NOT_FOUND'
   | 'RATE_LIMITED'
   | 'INVALID_API_KEY'
   | 'NO_SHOW_FOUND'
@@ -51,10 +52,10 @@ export class TimeoutError extends ApiError {
 }
 
 export class ServerError extends ApiError {
-  constructor(statusCode: number) {
+  constructor(statusCode: number, detail?: string) {
     super(
       'SERVER_ERROR',
-      `Server returned status ${statusCode}`,
+      detail || `Server returned status ${statusCode}`,
       'Phish.net is experiencing issues. Please try again later.',
       statusCode
     );
@@ -75,11 +76,11 @@ export class RateLimitError extends ApiError {
 }
 
 export class InvalidApiKeyError extends ApiError {
-  constructor() {
+  constructor(detail?: string) {
     super(
       'INVALID_API_KEY',
-      'Invalid or missing API key',
-      'There is a configuration issue. Please contact support.',
+      detail || 'Invalid or missing API key',
+      'The Phish.net API key is missing or invalid, so shows cannot be loaded.',
       401
     );
     this.name = 'InvalidApiKeyError';
@@ -93,7 +94,7 @@ export class NoShowFoundError extends ApiError {
     super(
       'NO_SHOW_FOUND',
       `No show found for date ${date}`,
-      `No Phish show was found on ${date}. Try selecting a different date.`
+      `No show was found on ${formatShowDate(date)}. Try a different date.`
     );
     this.name = 'NoShowFoundError';
     this.date = date;
@@ -119,14 +120,6 @@ export function getUserFriendlyMessage(error: unknown): string {
     return error.userMessage;
   }
 
-  if (error instanceof Error) {
-    // Check for common error patterns
-    if (error.message.includes('fetch') || error.message.includes('network')) {
-      return 'Unable to connect to Phish.net. Please check your internet connection.';
-    }
-    return error.message;
-  }
-
   return 'An unexpected error occurred. Please try again.';
 }
 
@@ -135,7 +128,7 @@ export function getUserFriendlyMessage(error: unknown): string {
  */
 export function isRetryableError(error: unknown): boolean {
   if (error instanceof ApiError) {
-    return ['NETWORK_ERROR', 'TIMEOUT', 'SERVER_ERROR', 'RATE_LIMITED'].includes(error.code);
+    return ['NETWORK_ERROR', 'TIMEOUT', 'SERVER_ERROR', 'RATE_LIMITED', 'UNKNOWN'].includes(error.code);
   }
-  return true;
+  return false;
 }

@@ -182,3 +182,15 @@ maliciousInputs.forEach(input => {
 - [DOMPurify Documentation](https://github.com/cure53/DOMPurify)
 - [OWASP XSS Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
 - [React Security Best Practices](https://react.dev/learn/passing-data-deeply-with-context#security)
+
+## Links
+
+Every link that survives sanitization is forced to `target="_blank"` with
+`rel="noopener noreferrer"` (a DOMPurify hook in `sanitize.ts`), so API-supplied
+HTML can't navigate this page or reach it through `window.opener`.
+
+## Encoding repair
+
+`fixEncodingIssues()` (in `encoding.ts`) repairs mojibake (UTF-8 text that was decoded as
+Windows-1252/Latin-1 upstream, e.g. `didnâ€™t`). Intact sequences are decoded
+back exactly; it does not guess at characters that are legitimately accented.
